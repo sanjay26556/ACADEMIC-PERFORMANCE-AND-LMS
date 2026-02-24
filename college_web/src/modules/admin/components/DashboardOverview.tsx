@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { useLMS } from "@/context/LMSContext";
 
 export function DashboardOverview() {
-    const { courses, colleges, teachers, students } = useLMS();
+    const { teachers, students } = useLMS();
+    const departmentsCount = 7; // Fixed list count
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -28,7 +29,7 @@ export function DashboardOverview() {
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                 {/* KPI Cards */}
                 {[
-                    { title: "Total Courses", value: courses?.length || 0, icon: BookOpen, color: "text-blue-400", sub: "+2 from last month" },
+                    { title: "Total Departments", value: departmentsCount, icon: Building2, color: "text-blue-400", sub: "Active divisions" },
                     { title: "Faculty Members", value: teachers?.length || 0, icon: GraduationCap, color: "text-amber-400", sub: "Across all departments" },
                     { title: "Enrolled Students", value: students?.length || 0, icon: Users, color: "text-emerald-400", sub: "Actively learning" }
                 ].map((item, idx) => (
@@ -78,20 +79,20 @@ export function DashboardOverview() {
                             <div className="bg-blue-500/10 p-2 rounded-lg group-hover:bg-blue-500/20 transition-colors">
                                 <Plus className="w-5 h-5 text-blue-400" />
                             </div>
-                            <span className="font-medium">Add New Academy Year</span>
+                            <span className="font-medium">Add New Department</span>
                             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:animate-shimmer" />
                         </Button>
                         <Button variant="outline" className="w-full justify-start gap-4 h-14 border-neutral-800 hover:bg-neutral-800 hover:text-white hover:border-neutral-700 bg-neutral-950/50 text-neutral-300 transition-all rounded-xl group relative overflow-hidden">
                             <div className="bg-purple-500/10 p-2 rounded-lg group-hover:bg-purple-500/20 transition-colors">
                                 <Building2 className="w-5 h-5 text-purple-400" />
                             </div>
-                            <span className="font-medium">Review College Applications</span>
+                            <span className="font-medium">Manage Staff Roles</span>
                         </Button>
                         <Button variant="outline" className="w-full justify-start gap-4 h-14 border-neutral-800 hover:bg-neutral-800 hover:text-white hover:border-neutral-700 bg-neutral-950/50 text-neutral-300 transition-all rounded-xl group relative overflow-hidden">
                             <div className="bg-red-500/10 p-2 rounded-lg group-hover:bg-red-500/20 transition-colors">
                                 <Trash2 className="w-5 h-5 text-red-400" />
                             </div>
-                            <span className="font-medium">Clean Up Archived Courses</span>
+                            <span className="font-medium">System Settings</span>
                         </Button>
                     </CardContent>
                 </Card>

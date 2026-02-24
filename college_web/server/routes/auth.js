@@ -6,7 +6,6 @@ const jwt = require('jsonwebtoken');
 const { authenticateToken } = require('../middleware/auth');
 
 // Login Route
-// Login Route
 router.post('/login', async (req, res) => {
     const { register_number, password } = req.body;
     const validator = require('validator');
@@ -64,13 +63,26 @@ router.post('/login', async (req, res) => {
             { expiresIn: '24h' }
         );
 
+        // Fetch Name
+        let name = "User";
+        if (user.role === 'teacher') {
+            const tRes = await pool.query('SELECT name, email FROM teachers WHERE user_id = $1', [user.id]);
+            if (tRes.rows.length > 0) name = tRes.rows[0].name;
+        } else if (user.role === 'student') {
+            const sRes = await pool.query('SELECT name, email FROM students WHERE user_id = $1', [user.id]);
+            if (sRes.rows.length > 0) name = sRes.rows[0].name;
+        } else if (user.role === 'admin') {
+            name = "Administrator";
+        }
+
         res.json({
             token,
             user: {
                 id: user.id,
                 register_number: user.register_number,
                 role: user.role,
-                first_login: user.first_login
+                first_login: user.first_login,
+                name: name
             }
         });
 

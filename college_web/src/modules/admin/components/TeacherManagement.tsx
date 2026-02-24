@@ -1,5 +1,21 @@
 import { useState } from "react";
 import { useLMS, Teacher } from "@/context/LMSContext";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+const DEPARTMENTS = [
+    "CSE (Computer Science & Engineering)",
+    "ECE (Electronics & Communication Engineering)",
+    "EEE (Electrical & Electronics Engineering)",
+    "Mechanical Engineering",
+    "Aeronautical Engineering",
+    "Biomedical Engineering",
+    "Architecture"
+];
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -41,15 +57,16 @@ export function TeacherManagement() {
         department: "",
         dob: "",
         email: "",
-        password: ""
+        password: "",
+        roleType: "Teacher"
     });
 
     const [searchTerm, setSearchTerm] = useState("");
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.name || !formData.dob || !formData.email) {
-            toast.error("Please fill in all required fields (Name, DOB, Email)");
+        if (!formData.name || !formData.dob || !formData.email || !formData.department) {
+            toast.error("Please fill in all required fields including Department");
             return;
         }
 
@@ -62,7 +79,7 @@ export function TeacherManagement() {
         try {
             await addTeacher(teacherData);
             setIsOpen(false);
-            setFormData({ name: "", register_number: "", department: "", dob: "", email: "", password: "" });
+            setFormData({ name: "", register_number: "", department: "", dob: "", email: "", password: "", roleType: "Teacher" });
         } catch (error) {
             // Error handled in context
         }
@@ -145,13 +162,32 @@ export function TeacherManagement() {
                                 <p className="text-xs text-neutral-500">Default: YYYY-MM-DD if left blank</p>
                             </div>
                             <div className="space-y-2">
-                                <Label>Department</Label>
-                                <Input
-                                    value={formData.department}
-                                    onChange={e => setFormData({ ...formData, department: e.target.value })}
-                                    className="bg-neutral-800 border-neutral-700"
-                                    placeholder="e.g. Computer Science"
-                                />
+                                <Label>Department*</Label>
+                                <Select value={formData.department} onValueChange={(val) => setFormData({ ...formData, department: val })}>
+                                    <SelectTrigger className="bg-neutral-800 border-neutral-700 text-white">
+                                        <SelectValue placeholder="Select Department" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
+                                        {DEPARTMENTS.map((dept) => (
+                                            <SelectItem key={dept} value={dept}>
+                                                {dept}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Role*</Label>
+                                <Select value={formData.roleType} onValueChange={(val) => setFormData({ ...formData, roleType: val })}>
+                                    <SelectTrigger className="bg-neutral-800 border-neutral-700 text-white">
+                                        <SelectValue placeholder="Select Role" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
+                                        <SelectItem value="Teacher">Teacher</SelectItem>
+                                        <SelectItem value="HOD">HOD</SelectItem>
+                                        <SelectItem value="Staff">Staff</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div className="space-y-2">
                                 <Label>Email (Optional)</Label>

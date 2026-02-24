@@ -1,5 +1,21 @@
 import { useState } from "react";
 import { useLMS, Student } from "@/context/LMSContext";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+const DEPARTMENTS = [
+    "CSE (Computer Science & Engineering)",
+    "ECE (Electronics & Communication Engineering)",
+    "EEE (Electrical & Electronics Engineering)",
+    "Mechanical Engineering",
+    "Aeronautical Engineering",
+    "Biomedical Engineering",
+    "Architecture"
+];
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,6 +38,7 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
     DialogTrigger,
     DialogFooter,
 } from "@/components/ui/dialog";
@@ -47,8 +64,8 @@ export function StudentManagement() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.name || !formData.register_number || !formData.dob) {
-            toast.error("Please fill in all required fields");
+        if (!formData.name || !formData.register_number || !formData.dob || !formData.department) {
+            toast.error("Please fill in all required fields including Department");
             return;
         }
 
@@ -104,6 +121,9 @@ export function StudentManagement() {
                     <DialogContent className="bg-neutral-900 border-neutral-800 text-white">
                         <DialogHeader>
                             <DialogTitle>Add New Student</DialogTitle>
+                            <DialogDescription>
+                                Enter the student's details below to enroll them in the system.
+                            </DialogDescription>
                         </DialogHeader>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="space-y-2">
@@ -144,6 +164,40 @@ export function StudentManagement() {
                                     className="bg-neutral-800 border-neutral-700"
                                 />
                             </div>
+
+                            <div className="space-y-2">
+                                <Label>Department*</Label>
+                                <Select value={formData.department} onValueChange={(val) => setFormData({ ...formData, department: val })}>
+                                    <SelectTrigger className="bg-neutral-800 border-neutral-700 text-white">
+                                        <SelectValue placeholder="Select Department" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
+                                        {DEPARTMENTS.map((dept) => (
+                                            <SelectItem key={dept} value={dept}>
+                                                {dept}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Year / Semester (Optional)</Label>
+                                    <Input
+                                        placeholder="e.g. 3rd Year / 5th Sem"
+                                        className="bg-neutral-800 border-neutral-700"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Section (Optional)</Label>
+                                    <Input
+                                        placeholder="e.g. A"
+                                        className="bg-neutral-800 border-neutral-700"
+                                    />
+                                </div>
+                            </div>
+
                             <DialogFooter>
                                 <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">Enroll Student</Button>
                             </DialogFooter>
@@ -189,7 +243,7 @@ export function StudentManagement() {
                                             variant="ghost"
                                             size="icon"
                                             className="hover:bg-red-500/10 hover:text-red-400 text-neutral-500 transition-colors"
-                                            onClick={() => handleDelete(student.user_id)} // Use user_id for deletion
+                                            onClick={() => handleDelete(student.id)} // Used student.id instead of undefined user_id
                                         >
                                             <Trash2 className="h-4 w-4" />
                                         </Button>

@@ -34,6 +34,11 @@ const Login = () => {
 
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(user));
+      // Store the user name for display
+      localStorage.setItem("currentUserName", user.name || "User");
+
+      if (user.role === 'student') localStorage.setItem("currentStudentEmail", user.email || "");
+      if (user.role === 'teacher') localStorage.setItem("currentTeacherEmail", user.email || "");
 
       if (user.first_login) {
         toast({
@@ -45,7 +50,7 @@ const Login = () => {
       }
 
       toast({
-        title: "Welcome back!",
+        title: `Welcome back, ${user.name || "User"}!`,
         description: "Redirecting to your dashboard...",
       });
 
@@ -103,21 +108,21 @@ const Login = () => {
             </Badge>
             <CardTitle className="text-2xl">Sign In</CardTitle>
             <CardDescription>
-              Enter your Register Number and Password (DOB for first login)
+              Enter your Register Number and Password
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <label htmlFor="regNum" className="text-sm font-medium">
-                  Register Number
+                  Register Number / Email
                 </label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                   <Input
                     id="regNum"
                     type="text"
-                    placeholder="e.g. 21CSE045"
+                    placeholder="e.g. 21CSE045 or email@college.edu"
                     value={registerNumber}
                     onChange={(e) => setRegisterNumber(e.target.value)}
                     className="pl-10"

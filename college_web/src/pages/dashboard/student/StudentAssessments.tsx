@@ -1,15 +1,15 @@
 import Sidebar from "@/components/dashboard/Sidebar";
-import StudentAchievementsView from "@/modules/student/components/StudentAchievementsView";
+import StudentAssessmentsView from "@/modules/student/components/StudentAssessmentsView";
 
-const StudentAchievements = () => {
+const StudentAssessments = () => {
     return (
         <div className="min-h-screen bg-background">
             <Sidebar role="student" />
             <main className="ml-64 p-8">
-                <StudentAchievementsView />
+                <StudentAssessmentsView />
             </main>
         </div>
     );
 };
 
-export default StudentAchievements;
+export default StudentAssessments;

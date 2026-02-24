@@ -6,7 +6,6 @@ import { TeacherManagement } from "./components/TeacherManagement";
 import { DepartmentManagement } from "@/modules/admin/components/DepartmentManagement";
 import { UserDirectory } from "./components/UserDirectory";
 import { PlatformAnalytics } from "@/modules/admin/components/PlatformAnalytics";
-import { CourseDirectory } from "@/modules/admin/components/CourseDirectory";
 import { DashboardOverview } from "@/modules/admin/components/DashboardOverview";
 import Sidebar from "@/components/dashboard/Sidebar";
 
@@ -26,8 +25,6 @@ export default function AdminDashboard() {
                 return <UserDirectory />;
             case 'analytics':
                 return <PlatformAnalytics />;
-            case 'courses':
-                return <CourseDirectory />;
             case 'departments':
                 return <DepartmentManagement />;
             case 'teachers':

@@ -16,6 +16,7 @@ export interface Student {
     email: string;
     department: string;
     role: 'student';
+    enrolledCourses?: number[];
 }
 
 export interface Teacher {

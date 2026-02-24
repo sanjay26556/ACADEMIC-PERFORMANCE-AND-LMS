@@ -7,13 +7,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import {
+    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+    AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+    AlertDialogTrigger
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Users, BookOpen, Calendar, TrendingUp, Clock, Plus, Save, Search, CheckCircle, XCircle } from "lucide-react";
+import { Users, BookOpen, Calendar, TrendingUp, Clock, Plus, Save, Search, CheckCircle, XCircle, Trash2, AlertTriangle, Mail } from "lucide-react";
 import MarksManagement from "./MarksManagement";
-
-
-
+import AssignmentsView from "./components/AssignmentsView";
+import AssessmentsManager from "./components/AssessmentsManager";
+import DashboardAnalytics from "./components/DashboardAnalytics";
 
 // API Helper
 const API_URL = 'http://localhost:5000';
@@ -34,103 +39,134 @@ export default function TeacherDashboard() {
                 {activeTab === 'students' && <ManageStudents />}
                 {activeTab === 'courses' && <MyCourses />}
                 {activeTab === 'attendance' && <AttendanceTracker />}
+                {activeTab === 'assignments' && <AssignmentsView />}
+                {activeTab === 'assessments' && <AssessmentsManager />}
                 {activeTab === 'marks' && <MarksManagement />}
-
                 {activeTab === 'timetable' && <TimetableView />}
                 {activeTab === 'notifications' && <NotificationsView />}
+                {activeTab === 'reports' && <ReportsAnalytics />}
             </div>
         </div>
     );
 }
 
 function NotificationsView() {
-    // Mock notifications for now
-    const notifications = [
-        { id: 1, title: "System Update", message: "The LMS will be under maintenance on Sunday.", time: "2 hours ago", type: "system" },
-        { id: 2, title: "New Message", message: "Admin has sent you a message regarding the schedule.", time: "1 day ago", type: "message" },
-    ];
+    const [notifications, setNotifications] = useState([]);
 
     return (
         <div className="space-y-6">
             <h2 className="text-2xl font-bold text-white">Notifications</h2>
             <div className="grid gap-4">
-                {notifications.map(n => (
-                    <Card key={n.id} className="bg-neutral-900/50 border-neutral-800">
-                        <CardHeader className="pb-2">
-                            <div className="flex justify-between">
-                                <CardTitle className="text-lg text-emerald-400">{n.title}</CardTitle>
-                                <span className="text-xs text-neutral-500">{n.time}</span>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-neutral-300">{n.message}</p>
-                        </CardContent>
-                    </Card>
-                ))}
+                {notifications.length === 0 ? (
+                    <div className="text-center py-12 text-neutral-500 bg-neutral-900/20 rounded-xl border border-neutral-800 border-dashed">
+                        No new notifications.
+                    </div>
+                ) : (
+                    notifications.map((n: any) => (
+                        <Card key={n.id} className="bg-neutral-900/50 border-neutral-800">
+                            <CardHeader className="pb-2">
+                                <div className="flex justify-between">
+                                    <CardTitle className="text-lg text-emerald-400">{n.title}</CardTitle>
+                                    <span className="text-xs text-neutral-500">{n.time}</span>
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-neutral-300">{n.message}</p>
+                            </CardContent>
+                        </Card>
+                    ))
+                )}
             </div>
         </div>
     );
 }
 
-// ... existing components
-
-
 function DashboardOverview() {
+    const [stats, setStats] = useState({ courses: 0, students: 0 });
+    const storedName = localStorage.getItem("currentUserName") || "Teacher";
+
+    useEffect(() => {
+        fetch(`${API_URL}/teacher/dashboard-stats`, { headers: getAuthHeaders() })
+            .then(res => res.json())
+            .then(data => setStats(data))
+            .catch(err => console.error(err));
+    }, []);
+
     return (
         <div className="space-y-6">
-            <h2 className="text-3xl font-bold text-white">Dashboard Overview</h2>
+            <h2 className="text-3xl font-bold text-white">Welcome, {storedName}</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card className="bg-neutral-900/50 border-neutral-800">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-neutral-400">Total Classes</CardTitle>
+                        <CardTitle className="text-sm font-medium text-neutral-400">Total Courses</CardTitle>
                         <BookOpen className="h-4 w-4 text-emerald-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-white">4</div>
-                        <p className="text-xs text-neutral-500">Active subjects</p>
+                        <div className="text-2xl font-bold text-white">{stats.courses}</div>
+                        <p className="text-xs text-neutral-500">Active courses</p>
                     </CardContent>
                 </Card>
                 <Card className="bg-neutral-900/50 border-neutral-800">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium text-neutral-400">Pending Attendance</CardTitle>
-                        <Calendar className="h-4 w-4 text-blue-500" />
+                        <CardTitle className="text-sm font-medium text-neutral-400">Total Students</CardTitle>
+                        <Users className="h-4 w-4 text-blue-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-white">2</div>
-                        <p className="text-xs text-neutral-500">Classes today</p>
+                        <div className="text-2xl font-bold text-white">{stats.students}</div>
+                        <p className="text-xs text-neutral-500">Enrolled across courses</p>
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Analytics Section */}
+            <DashboardAnalytics />
         </div>
     );
 }
 
 function ManageStudents() {
+    const [courses, setCourses] = useState([]);
+    const [selectedCourse, setSelectedCourse] = useState("");
     const [students, setStudents] = useState([]);
     const [regNo, setRegNo] = useState("");
     const [loading, setLoading] = useState(false);
 
-    // Fetch my students
-    const fetchMyStudents = () => {
-        fetch(`${API_URL}/teacher/my-students`, { headers: getAuthHeaders() })
+    // Fetch Courses
+    useEffect(() => {
+        fetch(`${API_URL}/teacher/courses`, { headers: getAuthHeaders() })
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data)) {
+                    setCourses(data);
+                    if (data.length > 0) setSelectedCourse(String(data[0].id));
+                }
+            })
+            .catch(err => toast.error("Failed to load courses"));
+    }, []);
+
+    // Fetch Students for Course
+    const fetchStudents = () => {
+        if (!selectedCourse) return;
+        fetch(`${API_URL}/teacher/courses/${selectedCourse}/students`, { headers: getAuthHeaders() })
             .then(res => res.json())
             .then(data => {
                 if (Array.isArray(data)) setStudents(data);
+                else setStudents([]);
             })
             .catch(err => toast.error("Failed to load students"));
     };
 
     useEffect(() => {
-        fetchMyStudents();
-    }, []);
+        fetchStudents();
+    }, [selectedCourse]);
 
     const handleAddStudent = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!regNo) return;
+        if (!regNo || !selectedCourse) return;
 
         setLoading(true);
         try {
-            const res = await fetch(`${API_URL}/teacher/add-student`, {
+            const res = await fetch(`${API_URL}/teacher/courses/${selectedCourse}/enroll`, {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({ register_number: regNo })
@@ -139,7 +175,7 @@ function ManageStudents() {
             if (res.ok) {
                 toast.success(data.message);
                 setRegNo("");
-                fetchMyStudents();
+                fetchStudents();
             } else {
                 toast.error(data.message);
             }
@@ -152,100 +188,322 @@ function ManageStudents() {
 
     return (
         <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-white">Manage My Class</h2>
+            <h2 className="text-2xl font-bold text-white">Manage Course Enrollments</h2>
 
-            {/* Add Student Form */}
-            <Card className="bg-neutral-900/50 border-neutral-800">
-                <CardHeader>
-                    <CardTitle className="text-lg">Add Student to Class</CardTitle>
-                    <CardDescription>Enter the student's Register Number to add them to your list.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <form onSubmit={handleAddStudent} className="flex gap-4 items-center">
-                        <div className="flex-1 max-w-sm">
-                            <Input
-                                placeholder="Enter Register Number (e.g., 21CSE001)"
-                                value={regNo}
-                                onChange={e => setRegNo(e.target.value)}
-                                className="bg-neutral-950/50 border-neutral-700"
-                            />
-                        </div>
-                        <Button type="submit" disabled={loading} className="bg-emerald-600 hover:bg-emerald-700">
-                            {loading ? "Adding..." : "Add Student"}
-                        </Button>
-                    </form>
-                </CardContent>
-            </Card>
+            {/* Course Selector */}
+            {courses.length > 0 ? (
+                <div className="flex gap-4 items-center bg-neutral-900/50 p-4 rounded-lg border border-neutral-800">
+                    <Label className="text-neutral-400">Select Course:</Label>
+                    <Select value={selectedCourse} onValueChange={setSelectedCourse}>
+                        <SelectTrigger className="w-[300px] bg-neutral-950 border-neutral-700">
+                            <SelectValue placeholder="Select a course" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {courses.map((c: any) => (
+                                <SelectItem key={c.id} value={String(c.id)}>{c.name} ({c.code}) - {c.year} Yr/Sem {c.semester}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            ) : (
+                <div className="text-neutral-500">No courses found. Create a course first in "My Courses".</div>
+            )}
 
-            {/* Students List */}
-            <Card className="bg-neutral-900/40 border-neutral-800">
-                <CardHeader>
-                    <CardTitle className="text-lg">My Students ({students.length})</CardTitle>
-                </CardHeader>
-                <Table>
-                    <TableHeader>
-                        <TableRow className="border-neutral-800">
-                            <TableHead className="text-neutral-400">Register No</TableHead>
-                            <TableHead className="text-neutral-400">Name</TableHead>
-                            <TableHead className="text-neutral-400">Email</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {students.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={3} className="text-center py-8 text-neutral-500">
-                                    No students added yet. Add students using their Register Number.
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            students.map((student: any) => (
-                                <TableRow key={student.id} className="border-neutral-800">
-                                    <TableCell className="font-mono text-neutral-300">{student.register_number}</TableCell>
-                                    <TableCell className="text-neutral-200">{student.name}</TableCell>
-                                    <TableCell className="text-neutral-400">{student.email || '-'}</TableCell>
+            {selectedCourse && (
+                <>
+                    {/* Add Student Form */}
+                    <Card className="bg-neutral-900/50 border-neutral-800">
+                        <CardHeader>
+                            <CardTitle className="text-lg">Enroll Student</CardTitle>
+                            <CardDescription>Enter Register Number to enroll student in selected course.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <form onSubmit={handleAddStudent} className="flex gap-4 items-center">
+                                <div className="flex-1 max-w-sm">
+                                    <Input
+                                        placeholder="Enter Register Number (e.g., 21CSE001)"
+                                        value={regNo}
+                                        onChange={e => setRegNo(e.target.value)}
+                                        className="bg-neutral-950/50 border-neutral-700"
+                                    />
+                                </div>
+                                <Button type="submit" disabled={loading} className="bg-emerald-600 hover:bg-emerald-700">
+                                    {loading ? "Adding..." : "Enroll Student"}
+                                </Button>
+                            </form>
+                        </CardContent>
+                    </Card>
+
+                    {/* Students List */}
+                    <Card className="bg-neutral-900/40 border-neutral-800">
+                        <CardHeader>
+                            <CardTitle className="text-lg">Enrolled Students ({students.length})</CardTitle>
+                        </CardHeader>
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="border-neutral-800">
+                                    <TableHead className="text-neutral-400">Register No</TableHead>
+                                    <TableHead className="text-neutral-400">Name</TableHead>
+                                    <TableHead className="text-neutral-400">Email</TableHead>
                                 </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
-            </Card>
+                            </TableHeader>
+                            <TableBody>
+                                {students.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={3} className="text-center py-8 text-neutral-500">
+                                            No students enrolled yet.
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    students.map((student: any) => (
+                                        <TableRow key={student.id} className="border-neutral-800">
+                                            <TableCell className="font-mono text-neutral-300">{student.register_number}</TableCell>
+                                            <TableCell className="text-neutral-200">{student.name}</TableCell>
+                                            <TableCell className="text-neutral-400">{student.email || '-'}</TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </Card>
+                </>
+            )}
         </div>
     );
 }
 
 function MyCourses() {
     const [courses, setCourses] = useState([]);
+    const [isAddOpen, setIsAddOpen] = useState(false);
 
-    useEffect(() => {
-        fetch(`${API_URL}/teacher/classes`, { headers: getAuthHeaders() })
+    // Delete State
+    const [deleteCourseId, setDeleteCourseId] = useState<string | null>(null);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+
+    // New Course Form State
+    const [newCourse, setNewCourse] = useState({
+        name: "", code: "", year: "1", semester: "1", section: "A"
+    });
+    const [creating, setCreating] = useState(false);
+
+    const fetchCourses = () => {
+        fetch(`${API_URL}/teacher/courses`, { headers: getAuthHeaders() })
             .then(res => res.json())
             .then(data => {
                 if (Array.isArray(data)) setCourses(data);
-                else {
-                    console.error("Expected array for courses, got:", data);
-                    setCourses([]);
-                }
+                else setCourses([]);
             })
             .catch(err => toast.error("Failed to load courses"));
+    };
+
+    useEffect(() => {
+        fetchCourses();
     }, []);
+
+    const handleCreateCourse = async () => {
+        if (!newCourse.name || !newCourse.code) {
+            toast.error("Please fill all fields");
+            return;
+        }
+        setCreating(true);
+        try {
+            const res = await fetch(`${API_URL}/teacher/courses`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(newCourse)
+            });
+            if (res.ok) {
+                toast.success("Course created successfully");
+                setIsAddOpen(false);
+                setNewCourse({ name: "", code: "", year: "1", semester: "1", section: "A" });
+                fetchCourses();
+            } else {
+                toast.error("Failed to create course");
+            }
+        } catch (err) {
+            toast.error("Error creating course");
+        } finally {
+            setCreating(false);
+        }
+    };
+
+    const confirmDelete = (courseId: string) => {
+        setDeleteCourseId(courseId);
+        setDeleteDialogOpen(true);
+    };
+
+    const handleDeleteCourse = async () => {
+        if (!deleteCourseId) return;
+        setDeleting(true);
+        try {
+            const res = await fetch(`${API_URL}/teacher/courses/${deleteCourseId}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders()
+            });
+
+            if (res.ok) {
+                toast.success("Course deleted successfully");
+                setCourses(courses.filter((c: any) => String(c.id) !== deleteCourseId));
+                setDeleteDialogOpen(false);
+            } else {
+                const data = await res.json();
+                toast.error(data.message || "Failed to delete course");
+            }
+        } catch (err) {
+            toast.error("Error deleting course");
+        } finally {
+            setDeleting(false);
+            setDeleteCourseId(null);
+        }
+    };
 
     return (
         <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-white">My Courses</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {courses.map((course: any) => (
-                    <Card key={course.id} className="bg-neutral-900/50 border-neutral-800 hover:border-emerald-500/50 transition-colors">
-                        <CardHeader>
-                            <CardTitle className="text-lg text-emerald-400">{course.name}</CardTitle>
-                            <CardDescription>{course.code}</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-sm text-neutral-400">Semester: {course.semester}</div>
-                            <div className="text-sm text-neutral-400">Credits: {course.credits}</div>
-                        </CardContent>
-                    </Card>
-                ))}
+            <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-white">My Courses</h2>
+                <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+                    <DialogTrigger asChild>
+                        <Button className="bg-emerald-600 hover:bg-emerald-700">
+                            <Plus className="mr-2 h-4 w-4" /> Add Course
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="bg-neutral-950 border-neutral-800">
+                        <DialogHeader>
+                            <DialogTitle className="text-white">Create New Course</DialogTitle>
+                            <DialogDescription className="text-neutral-400">
+                                Enter the details below to create a new course.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Course Name</Label>
+                                    <Input
+                                        placeholder="e.g. Mathematics I"
+                                        value={newCourse.name}
+                                        onChange={e => setNewCourse({ ...newCourse, name: e.target.value })}
+                                        className="bg-neutral-900 border-neutral-700"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Course Code</Label>
+                                    <Input
+                                        placeholder="e.g. MAT101"
+                                        value={newCourse.code}
+                                        onChange={e => setNewCourse({ ...newCourse, code: e.target.value })}
+                                        className="bg-neutral-900 border-neutral-700"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Year</Label>
+                                    <Select value={newCourse.year} onValueChange={v => setNewCourse({ ...newCourse, year: v })}>
+                                        <SelectTrigger className="bg-neutral-900 border-neutral-700"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="1">1st Year</SelectItem>
+                                            <SelectItem value="2">2nd Year</SelectItem>
+                                            <SelectItem value="3">3rd Year</SelectItem>
+                                            <SelectItem value="4">4th Year</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Semester</Label>
+                                    <Select value={newCourse.semester} onValueChange={v => setNewCourse({ ...newCourse, semester: v })}>
+                                        <SelectTrigger className="bg-neutral-900 border-neutral-700"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            {[1, 2, 3, 4, 5, 6, 7, 8].map(s => <SelectItem key={s} value={String(s)}>Sem {s}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Section</Label>
+                                    <Select value={newCourse.section} onValueChange={v => setNewCourse({ ...newCourse, section: v })}>
+                                        <SelectTrigger className="bg-neutral-900 border-neutral-700"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            {['A', 'B', 'C', 'D'].map(s => <SelectItem key={s} value={s}>Sec {s}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button onClick={handleCreateCourse} disabled={creating} className="bg-emerald-600 hover:bg-emerald-700">
+                                {creating ? "Creating..." : "Create Course"}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {courses.length === 0 ? (
+                    <div className="col-span-full text-center py-12 text-neutral-500 border border-dashed border-neutral-800 rounded-xl">
+                        No courses created yet. Click "Add Course" to get started.
+                    </div>
+                ) : (
+                    courses.map((course: any) => (
+                        <Card key={course.id} className="bg-neutral-900/50 border-neutral-800 hover:border-emerald-500/50 transition-colors group relative">
+                            <CardHeader>
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <CardTitle className="text-lg text-emerald-400">{course.name}</CardTitle>
+                                        <CardDescription>{course.code}</CardDescription>
+                                    </div>
+                                    <div className="flex flex-col items-end gap-2">
+                                        <div className="px-2 py-1 bg-neutral-800 rounded text-xs text-neutral-400 font-mono">
+                                            {course.year} - {course.section}
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="flex justify-between text-sm text-neutral-400 mt-2">
+                                    <span>Semester {course.semester}</span>
+                                    <span>Year {course.year}</span>
+                                </div>
+                            </CardContent>
+
+                            {/* Hover Delete Button */}
+                            <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                    size="icon"
+                                    variant="destructive"
+                                    className="h-8 w-8 bg-red-900/50 hover:bg-red-600 border border-red-800/50"
+                                    onClick={() => confirmDelete(String(course.id))}
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </Card>
+                    ))
+                )}
+            </div>
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <AlertDialogContent className="bg-neutral-950 border-neutral-800">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-white">Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-neutral-400">
+                            This action cannot be undone. This will permanently delete the course "{courses.find((c: any) => String(c.id) === deleteCourseId)?.name}"
+                            and remove all associated student enrollments, marks, and attendance data.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel className="bg-neutral-900 text-white hover:bg-neutral-800 border-neutral-700">Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDeleteCourse}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                            disabled={deleting}
+                        >
+                            {deleting ? "Deleting..." : "Delete Course"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }
@@ -258,26 +516,29 @@ function AttendanceTracker() {
     const [attendance, setAttendance] = useState<Record<string, string>>({});
 
     useEffect(() => {
-        // Load Courses
-        fetch(`${API_URL}/teacher/classes`, { headers: getAuthHeaders() })
+        fetch(`${API_URL}/teacher/courses`, { headers: getAuthHeaders() })
             .then(res => res.json())
             .then(data => {
-                if (Array.isArray(data)) setCourses(data);
+                if (Array.isArray(data)) {
+                    setCourses(data);
+                    if (data.length > 0) setSelectedCourse(String(data[0].id));
+                }
             })
             .catch(err => console.error(err));
+    }, []);
 
-        // Load My Students for Attendance
-        fetch(`${API_URL}/teacher/my-students`, { headers: getAuthHeaders() })
+    useEffect(() => {
+        if (!selectedCourse) return;
+        fetch(`${API_URL}/teacher/courses/${selectedCourse}/students`, { headers: getAuthHeaders() })
             .then(res => res.json())
             .then(data => {
                 setStudents(data);
-                // Initialize attendance
                 const initialAuth: Record<string, string> = {};
                 data.forEach((s: any) => initialAuth[s.id] = "Present");
                 setAttendance(initialAuth);
             })
-            .catch(err => console.error("Failed to load students"));
-    }, []);
+            .catch(err => console.error(err));
+    }, [selectedCourse]);
 
     const submitAttendance = async () => {
         if (!selectedCourse) {
@@ -295,7 +556,7 @@ function AttendanceTracker() {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({
-                    subject_id: parseInt(selectedCourse),
+                    course_id: parseInt(selectedCourse),
                     date,
                     attendance_data: attendanceData
                 })
@@ -313,13 +574,13 @@ function AttendanceTracker() {
                 <h2 className="text-2xl font-bold text-white">Attendance Tracker</h2>
                 <div className="flex gap-4">
                     <Input type="date" value={date} onChange={e => setDate(e.target.value)} className="bg-neutral-900 border-neutral-700 w-40" />
-                    <Select onValueChange={setSelectedCourse}>
-                        <SelectTrigger className="w-[200px] bg-neutral-900 border-neutral-700">
+                    <Select value={selectedCourse} onValueChange={setSelectedCourse}>
+                        <SelectTrigger className="w-[300px] bg-neutral-900 border-neutral-700">
                             <SelectValue placeholder="Select Course" />
                         </SelectTrigger>
                         <SelectContent>
                             {courses.map((c: any) => (
-                                <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                                <SelectItem key={c.id} value={String(c.id)}>{c.name} ({c.code})</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
@@ -337,27 +598,35 @@ function AttendanceTracker() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {students.map((student: any) => (
-                                <TableRow key={student.id}>
-                                    <TableCell className="font-mono text-neutral-300">{student.register_number}</TableCell>
-                                    <TableCell className="text-neutral-200">{student.name}</TableCell>
-                                    <TableCell className="text-center">
-                                        <div className="flex justify-center gap-2">
-                                            {['Present', 'Absent', 'On Duty'].map(status => (
-                                                <Button
-                                                    key={status}
-                                                    size="sm"
-                                                    variant={attendance[student.id] === status ? (status === 'Absent' ? 'destructive' : 'default') : 'outline'}
-                                                    className={attendance[student.id] === status ? (status === 'Present' ? 'bg-emerald-600 hover:bg-emerald-700' : '') : 'border-neutral-700 hover:bg-neutral-800'}
-                                                    onClick={() => setAttendance({ ...attendance, [student.id]: status })}
-                                                >
-                                                    {status}
-                                                </Button>
-                                            ))}
-                                        </div>
+                            {students.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={3} className="text-center py-8 text-neutral-500">
+                                        No students enrolled in this course.
                                     </TableCell>
                                 </TableRow>
-                            ))}
+                            ) : (
+                                students.map((student: any) => (
+                                    <TableRow key={student.id}>
+                                        <TableCell className="font-mono text-neutral-300">{student.register_number}</TableCell>
+                                        <TableCell className="text-neutral-200">{student.name}</TableCell>
+                                        <TableCell className="text-center">
+                                            <div className="flex justify-center gap-2">
+                                                {['Present', 'Absent', 'On Duty'].map(status => (
+                                                    <Button
+                                                        key={status}
+                                                        size="sm"
+                                                        variant={attendance[student.id] === status ? (status === 'Absent' ? 'destructive' : 'default') : 'outline'}
+                                                        className={attendance[student.id] === status ? (status === 'Present' ? 'bg-emerald-600 hover:bg-emerald-700' : '') : 'border-neutral-700 hover:bg-neutral-800'}
+                                                        onClick={() => setAttendance({ ...attendance, [student.id]: status })}
+                                                    >
+                                                        {status}
+                                                    </Button>
+                                                ))}
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
                         </TableBody>
                     </Table>
                     <div className="p-4 flex justify-end">
@@ -375,182 +644,175 @@ function AttendanceTracker() {
     );
 }
 
-function MarksEntry() {
-    const [courses, setCourses] = useState([]);
-    const [selectedCourse, setSelectedCourse] = useState("");
-    const [examType, setExamType] = useState("Internal 1");
-    const [students, setStudents] = useState([]);
-    const [marks, setMarks] = useState<Record<string, string>>({});
+function TimetableView() {
+    const [timetable, setTimetable] = useState([]);
 
     useEffect(() => {
-        // Load Courses
-        fetch(`${API_URL}/teacher/classes`, { headers: getAuthHeaders() })
-            .then(res => res.json())
-            .then(data => {
-                if (Array.isArray(data)) setCourses(data);
-            })
-            .catch(err => console.error(err));
-
-        // Load My Students for Marks
-        fetch(`${API_URL}/teacher/my-students`, { headers: getAuthHeaders() })
-            .then(res => res.json())
-            .then(data => setStudents(data))
-            .catch(err => console.error("Failed to load students"));
     }, []);
 
-    const submitMarks = async () => {
-        if (!selectedCourse) {
-            toast.error("Please select a course");
+    return (
+        <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-white">My Timetable</h2>
+            <div className="text-center py-12 text-neutral-500 bg-neutral-900/20 rounded-xl border border-neutral-800 border-dashed">
+                Time table feature coming soon.
+            </div>
+        </div>
+    );
+}
+
+function ReportsAnalytics() {
+    const [students, setStudents] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [sending, setSending] = useState(false);
+
+    useEffect(() => {
+        fetch(`${API_URL}/teacher/analytics`, { headers: getAuthHeaders() })
+            .then(res => res.json())
+            .then(data => {
+                setStudents(data);
+                setLoading(false);
+            })
+            .catch(err => {
+                console.error(err);
+                toast.error("Failed to load analytics");
+                setLoading(false);
+            });
+    }, []);
+
+    const sendAlert = async (type: 'attendance' | 'marks', studentId?: number) => {
+        // If studentId valid, send to that one. Else, send to all 'at risk' for that type.
+        let targets = [];
+        if (studentId) {
+            targets = [students.find((s: any) => s.student_id === studentId)?.user_id];
+        } else {
+            // Bulk send
+            if (Array.isArray(students)) {
+                targets = students
+                    .filter((s: any) => {
+                        if (type === 'attendance') return parseFloat(s.attendance_pct) < 75;
+                        if (type === 'marks') return parseFloat(s.marks_pct) < 50;
+                        return false;
+                    })
+                    .map((s: any) => s.user_id);
+            }
+        }
+
+        if (targets.length === 0) {
+            toast.info("No students found for this alert.");
             return;
         }
 
-        const marksData = Object.entries(marks).map(([studentId, score]) => ({
-            student_id: parseInt(studentId),
-            marks_obtained: parseFloat(score)
-        }));
-
+        setSending(true);
         try {
-            const res = await fetch(`${API_URL}/teacher/marks`, {
+            const res = await fetch(`${API_URL}/teacher/notifications/send-alerts`, {
                 method: 'POST',
                 headers: getAuthHeaders(),
-                body: JSON.stringify({
-                    subject_id: parseInt(selectedCourse),
-                    exam_type: examType,
-                    max_marks: 100, // Default to 100 type
-                    marks_data: marksData
-                })
+                body: JSON.stringify({ student_ids: targets, type })
             });
-            if (res.ok) toast.success("Marks uploaded successfully");
-            else throw new Error();
+            if (res.ok) {
+                toast.success(`Alerts sent to ${targets.length} student(s)`);
+            } else {
+                toast.error("Failed to send alerts");
+            }
         } catch (err) {
-            toast.error("Failed to submit marks");
+            toast.error("Error sending alerts");
+        } finally {
+            setSending(false);
         }
     };
 
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-white">Internal Marks Entry</h2>
-                <div className="flex gap-4">
-                    <Select value={examType} onValueChange={setExamType}>
-                        <SelectTrigger className="w-[180px] bg-neutral-900 border-neutral-700">
-                            <SelectValue placeholder="Exam Type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="Internal 1">Internal 1</SelectItem>
-                            <SelectItem value="Internal 2">Internal 2</SelectItem>
-                            <SelectItem value="Semester">Semester</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <Select onValueChange={setSelectedCourse}>
-                        <SelectTrigger className="w-[200px] bg-neutral-900 border-neutral-700">
-                            <SelectValue placeholder="Select Course" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {courses.map((c: any) => (
-                                <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                <h2 className="text-2xl font-bold text-white">Reports & Analytics</h2>
+                <div className="flex gap-2">
+                    <Button
+                        onClick={() => sendAlert('attendance')}
+                        disabled={sending}
+                        variant="outline"
+                        className="border-red-500/50 text-red-400 hover:bg-red-950/30"
+                    >
+                        <AlertTriangle className="mr-2 h-4 w-4" /> Alert Low Attendance
+                    </Button>
+                    <Button
+                        onClick={() => sendAlert('marks')}
+                        disabled={sending}
+                        variant="outline"
+                        className="border-amber-500/50 text-amber-400 hover:bg-amber-950/30"
+                    >
+                        <AlertTriangle className="mr-2 h-4 w-4" /> Alert Low Marks
+                    </Button>
                 </div>
             </div>
 
-            {selectedCourse ? (
-                <Card className="bg-neutral-900/40 border-neutral-800">
+            <Card className="bg-neutral-900/40 border-neutral-800">
+                <CardHeader>
+                    <CardTitle>Student Performance Overview</CardTitle>
+                    <CardDescription>Overall performance across all your courses.</CardDescription>
+                </CardHeader>
+                <CardContent>
                     <Table>
                         <TableHeader>
-                            <TableRow>
+                            <TableRow className="border-neutral-800">
                                 <TableHead className="text-neutral-400">Register No</TableHead>
-                                <TableHead className="text-neutral-400">Student Name</TableHead>
-                                <TableHead className="text-right text-neutral-400">Marks (out of 100)</TableHead>
+                                <TableHead className="text-neutral-400">Name</TableHead>
+                                <TableHead className="text-center text-neutral-400">Overall Attendance</TableHead>
+                                <TableHead className="text-center text-neutral-400">Overall Marks</TableHead>
+                                <TableHead className="text-right text-neutral-400">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {students.map((student: any) => (
-                                <TableRow key={student.id}>
-                                    <TableCell className="font-mono text-neutral-300">{student.register_number}</TableCell>
-                                    <TableCell className="text-neutral-200">{student.name}</TableCell>
-                                    <TableCell className="text-right">
-                                        <Input
-                                            type="number"
-                                            className="w-24 ml-auto bg-neutral-800 border-neutral-600"
-                                            value={marks[student.id] || ''}
-                                            onChange={e => setMarks({ ...marks, [student.id]: e.target.value })}
-                                        />
+                            {loading ? (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="text-center py-8">Loading analytics...</TableCell>
+                                </TableRow>
+                            ) : !Array.isArray(students) || students.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="text-center py-8 text-neutral-500">
+                                        {!Array.isArray(students) ? "Failed to load data. Please try again." : "No students found."}
                                     </TableCell>
                                 </TableRow>
-                            ))}
+                            ) : (
+                                students.map((s: any) => {
+                                    const lowAtt = parseFloat(s.attendance_pct) < 75;
+                                    const lowMarks = parseFloat(s.marks_pct) < 50;
+                                    return (
+                                        <TableRow key={s.student_id} className="border-neutral-800">
+                                            <TableCell className="font-mono text-neutral-300">{s.register_number}</TableCell>
+                                            <TableCell className="text-neutral-200">{s.name}</TableCell>
+                                            <TableCell className="text-center">
+                                                <span className={`px-2 py-1 rounded text-xs font-bold ${lowAtt ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                                                    {s.attendance_pct}%
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                                <span className={`px-2 py-1 rounded text-xs font-bold ${lowMarks ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                                                    {s.marks_pct}%
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    {(lowAtt || lowMarks) && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-8 w-8 p-0 text-neutral-400 hover:text-white"
+                                                            title="Send Individual Alert"
+                                                            onClick={() => sendAlert(lowAtt ? 'attendance' : 'marks', s.student_id)}
+                                                        >
+                                                            <Mail className="h-4 w-4" />
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })
+                            )}
                         </TableBody>
                     </Table>
-                    <div className="p-4 flex justify-end">
-                        <Button onClick={submitMarks} className="bg-white text-black hover:bg-neutral-200">
-                            <Save className="mr-2 h-4 w-4" /> Save Marks
-                        </Button>
-                    </div>
-                </Card>
-            ) : (
-                <div className="text-center py-12 text-neutral-500 bg-neutral-900/20 rounded-xl border border-neutral-800 border-dashed">
-                    Select a course to enter marks
-                </div>
-            )}
+                </CardContent>
+            </Card>
         </div>
     );
 }
-
-function TimetableView() {
-    const [timetable, setTimetable] = useState([]);
-
-    useEffect(() => {
-        fetch(`${API_URL}/teacher/timetable`, { headers: getAuthHeaders() })
-            .then(res => res.json())
-            .then(data => {
-                if (Array.isArray(data)) setTimetable(data);
-                else setTimetable([]);
-            })
-            .catch(err => toast.error("Failed to load timetable"));
-    }, []);
-
-    // Helper to organize by day/hour
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-
-    return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold text-white">My Timetable</h2>
-                <Button variant="outline" className="border-neutral-700">
-                    <Plus className="mr-2 h-4 w-4" /> Request Change
-                </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                {days.map(day => {
-                    const dayClasses = timetable.filter((t: any) => t.day_of_week === day);
-                    return (
-                        <Card key={day} className="bg-neutral-900/50 border-neutral-800">
-                            <CardHeader className="pb-3 border-b border-neutral-800/50">
-                                <CardTitle className="text-center text-lg">{day}</CardTitle>
-                            </CardHeader>
-                            <CardContent className="pt-4 space-y-4">
-                                {dayClasses.length === 0 ? (
-                                    <div className="text-center text-neutral-600 text-sm py-8">Free Day</div>
-                                ) : (
-                                    dayClasses.map((t: any) => (
-                                        <div key={t.id} className="p-3 rounded-lg bg-neutral-800/50 border border-neutral-700/50">
-                                            <div className="flex items-center gap-2 text-xs text-neutral-400 mb-1">
-                                                <Clock className="w-3 h-3" />
-                                                {t.start_time.slice(0, 5)} - {t.end_time.slice(0, 5)}
-                                            </div>
-                                            <div className="font-semibold text-emerald-400 text-sm">{t.subject_name}</div>
-                                            <div className="text-xs text-neutral-500 mt-1">Room: {t.room_number || 'N/A'}</div>
-                                        </div>
-                                    ))
-                                )}
-                            </CardContent>
-                        </Card>
-                    );
-                })}
-            </div>
-        </div>
-    );
-}
-

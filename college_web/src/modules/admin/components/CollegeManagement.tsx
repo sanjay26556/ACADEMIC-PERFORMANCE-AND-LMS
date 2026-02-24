@@ -10,7 +10,7 @@ import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "sonner";
 import { useLMS } from "@/context/LMSContext";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useState } from "react";
 
 const collegeSchema = z.object({
@@ -116,6 +116,9 @@ export function CollegeManagement() {
                     <DialogContent className="bg-neutral-900 border-neutral-800 text-white max-w-2xl">
                         <DialogHeader>
                             <DialogTitle>Enroll New College</DialogTitle>
+                            <DialogDescription className="text-neutral-400">
+                                Register a new partner college to the system.
+                            </DialogDescription>
                         </DialogHeader>
                         <Form {...collegeForm}>
                             <form onSubmit={collegeForm.handleSubmit(onCollegeSubmit)} className="space-y-6">

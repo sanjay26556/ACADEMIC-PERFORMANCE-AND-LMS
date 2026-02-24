@@ -10,7 +10,7 @@ import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-    Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
+    Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription,
 } from "@/components/ui/dialog";
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue
@@ -361,7 +361,7 @@ export function CourseDirectory() {
                             <Sparkles className="w-5 h-5 text-green-400" />
                             Create New Course
                         </DialogTitle>
-                        <CardDescription>Add a new academic course to the catalog.</CardDescription>
+                        <DialogDescription className="text-neutral-400">Add a new academic course to the catalog.</DialogDescription>
                     </DialogHeader>
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">

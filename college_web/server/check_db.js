@@ -1,5 +1,5 @@
-const { Pool } = require('pg');
 require('dotenv').config();
+const { Pool } = require('pg');
 
 const pool = new Pool({
     user: process.env.DB_USER,
@@ -9,30 +9,26 @@ const pool = new Pool({
     port: process.env.DB_PORT,
 });
 
-async function checkTables() {
+async function check() {
     try {
-        const res = await pool.query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public'
-    `);
-        console.log("Tables in database:");
-        res.rows.forEach(row => console.log(` - ${row.table_name}`));
+        console.log('Testing DB connection...');
+        const res = await pool.query('SELECT NOW()');
+        console.log('DB Connected:', res.rows[0]);
 
-        // Check teacher_students specific columns to be sure
-        const tsRes = await pool.query(`
-        SELECT column_name, data_type 
-        FROM information_schema.columns 
-        WHERE table_name = 'teacher_students'
-    `);
-        console.log("\nColumns in teacher_students:");
-        tsRes.rows.forEach(row => console.log(` - ${row.column_name} (${row.data_type})`));
+        console.log('Checking Teachers...');
+        const teachers = await pool.query('SELECT * FROM teachers LIMIT 5');
+        console.log('Teachers found:', teachers.rowCount);
+        teachers.rows.forEach(t => console.log(`Teacher ID: ${t.id}, User ID: ${t.user_id}`));
+
+        console.log('Checking Courses...');
+        const courses = await pool.query('SELECT * FROM courses LIMIT 5');
+        console.log('Courses found:', courses.rowCount);
 
     } catch (err) {
-        console.error("Error checking tables:", err);
+        console.error('DB Error:', err);
     } finally {
         pool.end();
     }
 }
 
-checkTables();
+check();

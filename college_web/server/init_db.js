@@ -33,6 +33,7 @@ const initDb = async () => {
         process.exit(0);
     } catch (err) {
         console.error('Error initializing database:', err);
+        fs.writeFileSync('error.log', String(err));
         process.exit(1);
     }
 };

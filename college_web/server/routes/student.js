@@ -8,6 +8,7 @@ const getStudentId = async (req, res, next) => {
     try {
         const result = await pool.query('SELECT id, department_id, current_semester FROM students WHERE user_id = $1', [req.user.id]);
         if (result.rows.length === 0) {
+            console.log("getStudentId 403: Student profile not found for user_id", req.user.id);
             return res.status(403).json({ message: 'Student profile not found' });
         }
         req.student = result.rows[0];
@@ -34,7 +35,7 @@ router.get('/overview', async (req, res) => {
 
         // Failed Subjects (Marks < 50% as example)
         const failedRes = await pool.query(`
-            SELECT COUNT(DISTINCT subject_id) as failed_count
+            SELECT COUNT(DISTINCT course_id) as failed_count
             FROM marks
             WHERE student_id = $1 AND (marks_obtained / max_marks) < 0.5
         `, [req.student.id]);
@@ -49,13 +50,31 @@ router.get('/overview', async (req, res) => {
     }
 });
 
+// Get Enrolled Courses
+router.get('/courses', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT c.*, t.name as teacher_name 
+            FROM courses c
+            JOIN course_enrollments ce ON c.id = ce.course_id
+            LEFT JOIN teachers t ON c.teacher_id = t.id
+            WHERE ce.student_id = $1
+            ORDER BY c.created_at DESC
+        `, [req.student.id]);
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
 // Get My Attendance
 router.get('/attendance', async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT a.*, s.name as subject_name, s.code as subject_code
+            SELECT a.*, c.name as subject_name, c.code as subject_code
             FROM attendance a
-            JOIN subjects s ON a.subject_id = s.id
+            JOIN courses c ON a.course_id = c.id
             WHERE a.student_id = $1
             ORDER BY a.date DESC
         `, [req.student.id]);
@@ -71,15 +90,15 @@ router.get('/marks', async (req, res) => {
     const { semester } = req.query;
     try {
         let query = `
-            SELECT m.*, s.name as subject_name, s.code as subject_code
+            SELECT m.*, c.name as subject_name, c.code as subject_code
             FROM marks m
-            JOIN subjects s ON m.subject_id = s.id
+            JOIN courses c ON m.course_id = c.id
             WHERE m.student_id = $1
         `;
         const params = [req.student.id];
 
         if (semester) {
-            query += ` AND s.semester = $2`;
+            query += ` AND c.semester = $2`;
             params.push(semester);
         } else {
             // By default maybe show current semester? 
@@ -87,7 +106,7 @@ router.get('/marks', async (req, res) => {
             // But requirement says "When semester selected -> Show 6 subjects for that sem".
         }
 
-        query += ` ORDER BY s.code, m.exam_type`;
+        query += ` ORDER BY c.code, m.exam_type`;
 
         const result = await pool.query(query, params);
         res.json(result.rows);
@@ -101,12 +120,13 @@ router.get('/marks', async (req, res) => {
 router.get('/timetable', async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT t.*, s.name as subject_name
+            SELECT t.*, c.name as subject_name
             FROM timetables t
-            JOIN subjects s ON t.subject_id = s.id
-            WHERE t.department_id = $1 AND t.semester = $2
+            JOIN courses c ON t.course_id = c.id
+            JOIN course_enrollments ce ON c.id = ce.course_id
+            WHERE ce.student_id = $1
             ORDER BY t.day_of_week, t.start_time
-        `, [req.student.department_id, req.student.current_semester]);
+        `, [req.student.id]);
         res.json(result.rows);
     } catch (err) {
         console.error(err);

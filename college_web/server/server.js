@@ -25,12 +25,15 @@ app.use('/admin', require('./routes/admin'));
 app.use('/teacher', require('./routes/teacher'));
 app.use('/student', require('./routes/student'));
 app.use('/notifications', require('./routes/notifications'));
+app.use('/assignments', require('./routes/assignments'));
+app.use('/assessments', require('./routes/assessments'));
 
 app.get('/', (req, res) => {
     res.send('EduPulse API is running');
 });
 
 // Start Server
-app.listen(port, () => {
+// Start Server
+app.listen(port, '0.0.0.0', () => {
     console.log(`Server is running on port ${port}`);
 });

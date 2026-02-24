@@ -20,6 +20,7 @@ const authenticateToken = (req, res, next) => {
 const authorizeRole = (roles) => {
     return (req, res, next) => {
         if (!req.user || !roles.includes(req.user.role)) {
+            console.log("authorizeRole 403: Role mismatch. Expected one of:", roles, "got:", req.user ? req.user.role : 'none');
             return res.status(403).json({ message: 'Access denied. Insufficient permissions.' });
         }
         next();

@@ -40,11 +40,43 @@ const Sidebar = ({ role }: SidebarProps) => {
   const [userProfile, setUserProfile] = useState<{ name: string; initials: string; roleLabel: string }>({
     name: "User",
     initials: "US",
-    roleLabel: role
+    roleLabel: role.charAt(0).toUpperCase() + role.slice(1)
   });
 
   useEffect(() => {
     const fetchProfile = () => {
+      // 1. Try to get name from LocalStorage (Set during login)
+      // 1. Try to get name from LocalStorage
+      const storedName = localStorage.getItem("currentUserName");
+      const userObj = localStorage.getItem("user");
+      const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
+
+      if (storedName) {
+        setUserProfile({
+          name: storedName,
+          initials: storedName.substring(0, 2).toUpperCase(),
+          roleLabel: roleLabel
+        });
+        return;
+      }
+
+      if (userObj) {
+        try {
+          const parsedUser = JSON.parse(userObj);
+          if (parsedUser.name) {
+            setUserProfile({
+              name: parsedUser.name,
+              initials: parsedUser.name.substring(0, 2).toUpperCase(),
+              roleLabel: roleLabel
+            });
+            return;
+          }
+        } catch (e) {
+          console.error("Failed to parse user object");
+        }
+      }
+
+      // 2. Fallback to Context ID lookup (Backward compatibility)
       if (role === 'student') {
         const email = localStorage.getItem("currentStudentEmail");
         const found = students.find(s => s.email === email);
@@ -54,13 +86,8 @@ const Sidebar = ({ role }: SidebarProps) => {
             initials: found.name.substring(0, 2).toUpperCase(),
             roleLabel: "Student"
           });
-        } else {
-          // Fallback or Mock as per requirement if not found
-          setUserProfile({ name: "Student", initials: "ST", roleLabel: "Student" });
         }
       } else if (role === 'teacher') {
-        // Basic logic for teacher as well to be safe
-        // Assuming teacher login sets currentTeacherEmail - keeping consistent
         const email = localStorage.getItem("currentTeacherEmail");
         const found = teachers.find(t => t.email === email);
         if (found) {
@@ -71,7 +98,6 @@ const Sidebar = ({ role }: SidebarProps) => {
           });
         }
       }
-      // Add other roles if needed
     };
 
     fetchProfile();
@@ -85,6 +111,7 @@ const Sidebar = ({ role }: SidebarProps) => {
     const studentItems: NavItem[] = [
       { icon: BookOpen, label: "My Courses", href: `/dashboard/student/courses` },
       { icon: FileText, label: "Assignments", href: `/dashboard/student/assignments` },
+      { icon: ClipboardList, label: "Assessments", href: `/dashboard/student/assessments` },
       { icon: Calendar, label: "Attendance", href: `/dashboard/student/attendance` },
       { icon: BarChart3, label: "Performance", href: `/dashboard/student/performance` },
       { icon: Trophy, label: "Achievements", href: `/dashboard/student/achievements` },
@@ -98,15 +125,12 @@ const Sidebar = ({ role }: SidebarProps) => {
       { icon: FileText, label: "Assignments", href: `/lms/teacher/dashboard?tab=assignments` },
       { icon: Trophy, label: "Marks", href: `/lms/teacher/dashboard?tab=marks` },
       { icon: BarChart3, label: "Reports & Analytics", href: `/lms/teacher/dashboard?tab=reports` },
-      { icon: UserCog, label: "Requests", href: `/lms/teacher/dashboard?tab=requests` },
     ];
 
     const adminItems: NavItem[] = [
 
       { icon: UserCog, label: "Users", href: `/lms/admin/dashboard?tab=users` },
       { icon: BarChart3, label: "Analytics", href: `/lms/admin/dashboard?tab=analytics` },
-      { icon: BookOpen, label: "Courses", href: `/lms/admin/dashboard?tab=courses` },
-      { icon: Building2, label: "Colleges", href: `/lms/admin/dashboard?tab=college` },
       { icon: Layers, label: "Departments", href: `/lms/admin/dashboard?tab=departments` },
       { icon: GraduationCap, label: "Teachers", href: `/lms/admin/dashboard?tab=teachers` },
       { icon: Users, label: "Students", href: `/lms/admin/dashboard?tab=students` },
@@ -119,8 +143,7 @@ const Sidebar = ({ role }: SidebarProps) => {
   const navItems = getNavItems();
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    localStorage.clear(); // Clear all
     window.location.href = "/";
   };
 
@@ -141,7 +164,7 @@ const Sidebar = ({ role }: SidebarProps) => {
             <span className="text-primary font-semibold">{userProfile.initials}</span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-sidebar-foreground truncate">{userProfile.name}</p>
+            <p className="text-sm font-medium text-sidebar-foreground truncate" title={userProfile.name}>{userProfile.name}</p>
             <Badge variant="glass" className="text-xs capitalize">{userProfile.roleLabel}</Badge>
           </div>
         </div>
@@ -212,16 +235,19 @@ function NotificationBadge() {
         });
         if (res.ok) {
           const data = await res.json();
-          const unread = data.filter((n: any) => !n.is_read).length;
-          setCount(unread);
+          // Assuming the API returns notifications array
+          if (Array.isArray(data)) {
+            const unread = data.filter((n: any) => !n.is_read).length;
+            setCount(unread);
+          }
         }
       } catch (err) {
-        console.error("Failed to fetch notifications");
+        // console.error("Failed to fetch notifications");
       }
     };
     fetchNotifications();
-    // Poll every 30 seconds
-    const interval = setInterval(fetchNotifications, 30000);
+    // Poll every 60 seconds
+    const interval = setInterval(fetchNotifications, 60000);
     return () => clearInterval(interval);
   }, []);
 

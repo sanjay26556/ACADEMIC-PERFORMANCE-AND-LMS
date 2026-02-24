@@ -12,6 +12,7 @@ import TeacherDashboard from "./pages/dashboard/TeacherDashboard";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import MyCourses from "./pages/dashboard/student/MyCourses";
 import StudentAssignments from "./pages/dashboard/student/StudentAssignments";
+import StudentAssessments from "./pages/dashboard/student/StudentAssessments";
 import StudentAttendance from "./pages/dashboard/student/StudentAttendance";
 import StudentPerformance from "./pages/dashboard/student/StudentPerformance";
 import StudentAchievements from "./pages/dashboard/student/StudentAchievements";
@@ -36,7 +37,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <LMSProvider>
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
@@ -47,6 +48,7 @@ const App = () => (
             <Route path="/dashboard/student" element={<StudentDashboard />} />
             <Route path="/dashboard/student/courses" element={<MyCourses />} />
             <Route path="/dashboard/student/assignments" element={<StudentAssignments />} />
+            <Route path="/dashboard/student/assessments" element={<StudentAssessments />} />
             <Route path="/dashboard/student/attendance" element={<StudentAttendance />} />
             <Route path="/dashboard/student/performance" element={<StudentPerformance />} />
             <Route path="/dashboard/student/achievements" element={<StudentAchievements />} />

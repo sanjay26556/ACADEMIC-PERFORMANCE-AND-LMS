@@ -145,4 +145,20 @@ router.get('/departments', authenticateToken, async (req, res) => {
     }
 });
 
+// Get All Courses (Admin)
+router.get('/courses', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT c.*, t.name as teacher_name 
+            FROM courses c 
+            LEFT JOIN teachers t ON c.teacher_id = t.id
+            ORDER BY c.created_at DESC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
 module.exports = router;
