@@ -43,13 +43,15 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, Search, Users, GraduationCap, BarChart } from "lucide-react";
+import { Plus, Trash2, Search, Users, GraduationCap, BarChart, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export function StudentManagement() {
-    const { students, addStudent, deleteUser } = useLMS();
+    const { students, addStudent, deleteUser, editUser } = useLMS();
     const [isOpen, setIsOpen] = useState(false);
+    const [isEditOpen, setIsEditOpen] = useState(false);
+    const [editingUserId, setEditingUserId] = useState<number | null>(null);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -57,10 +59,53 @@ export function StudentManagement() {
         register_number: "",
         department: "",
         dob: "",
-        email: ""
+        email: "",
+        year: "1",
+        semester: "1",
+        section: "A"
+    });
+
+    const [editData, setEditData] = useState({
+        name: "",
+        register_number: "",
+        department: "",
+        email: "",
+        year: "1",
+        semester: "1",
+        section: "A"
     });
 
     const [searchTerm, setSearchTerm] = useState("");
+
+    const openEditDialog = (student: any) => {
+        setEditingUserId(student.id);
+        setEditData({
+            name: student.name || "",
+            register_number: student.register_number || "",
+            department: student.department || "",
+            email: student.email || "",
+            year: student.batch_year ? String(student.batch_year) : "1",
+            semester: student.current_semester ? String(student.current_semester) : "1",
+            section: student.section || "A"
+        });
+        setIsEditOpen(true);
+    };
+
+    const handleEditSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editData.name || !editData.register_number || !editData.department) {
+            toast.error("Please fill in all required fields including Department");
+            return;
+        }
+
+        try {
+            await editUser(editingUserId!, { ...editData, role: 'student' });
+            setIsEditOpen(false);
+            setEditingUserId(null);
+        } catch (error) {
+            // Error handled in context
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -72,7 +117,7 @@ export function StudentManagement() {
         try {
             await addStudent(formData);
             setIsOpen(false);
-            setFormData({ name: "", register_number: "", department: "", dob: "", email: "" });
+            setFormData({ name: "", register_number: "", department: "", dob: "", email: "", year: "1", semester: "1", section: "A" });
         } catch (error) {
             // Error handled in context
         }
@@ -181,25 +226,147 @@ export function StudentManagement() {
                                 </Select>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-3 gap-4">
                                 <div className="space-y-2">
-                                    <Label>Year / Semester (Optional)</Label>
-                                    <Input
-                                        placeholder="e.g. 3rd Year / 5th Sem"
-                                        className="bg-neutral-800 border-neutral-700"
-                                    />
+                                    <Label>Year</Label>
+                                    <Select value={formData.year} onValueChange={(val) => setFormData({ ...formData, year: val })}>
+                                        <SelectTrigger className="bg-neutral-800 border-neutral-700 text-white">
+                                            <SelectValue placeholder="Year" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
+                                            <SelectItem value="1">1st Year</SelectItem>
+                                            <SelectItem value="2">2nd Year</SelectItem>
+                                            <SelectItem value="3">3rd Year</SelectItem>
+                                            <SelectItem value="4">4th Year</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>Section (Optional)</Label>
-                                    <Input
-                                        placeholder="e.g. A"
-                                        className="bg-neutral-800 border-neutral-700"
-                                    />
+                                    <Label>Semester</Label>
+                                    <Select value={formData.semester} onValueChange={(val) => setFormData({ ...formData, semester: val })}>
+                                        <SelectTrigger className="bg-neutral-800 border-neutral-700 text-white">
+                                            <SelectValue placeholder="Semester" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
+                                            {[1, 2, 3, 4, 5, 6, 7, 8].map(s => <SelectItem key={s} value={String(s)}>Sem {s}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Section</Label>
+                                    <Select value={formData.section} onValueChange={(val) => setFormData({ ...formData, section: val })}>
+                                        <SelectTrigger className="bg-neutral-800 border-neutral-700 text-white">
+                                            <SelectValue placeholder="Section" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
+                                            {['A', 'B', 'C', 'D'].map(s => <SelectItem key={s} value={s}>Sec {s}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </div>
 
                             <DialogFooter>
                                 <Button type="submit" className="bg-emerald-600 hover:bg-emerald-700">Enroll Student</Button>
+                            </DialogFooter>
+                        </form>
+                    </DialogContent>
+                </Dialog>
+
+                <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+                    <DialogContent className="bg-neutral-900 border-neutral-800 text-white">
+                        <DialogHeader>
+                            <DialogTitle>Edit Student</DialogTitle>
+                            <DialogDescription>
+                                Update the student's details below.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <form onSubmit={handleEditSubmit} className="space-y-4">
+                            <div className="space-y-2">
+                                <Label>Full Name*</Label>
+                                <Input
+                                    value={editData.name}
+                                    onChange={e => setEditData({ ...editData, name: e.target.value })}
+                                    className="bg-neutral-800 border-neutral-700"
+                                    required
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Register Number*</Label>
+                                <Input
+                                    value={editData.register_number}
+                                    onChange={e => setEditData({ ...editData, register_number: e.target.value })}
+                                    className="bg-neutral-800 border-neutral-700"
+                                    required
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>Email (Optional)</Label>
+                                <Input
+                                    type="email"
+                                    value={editData.email}
+                                    onChange={e => setEditData({ ...editData, email: e.target.value })}
+                                    className="bg-neutral-800 border-neutral-700"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label>Department*</Label>
+                                <Select value={editData.department} onValueChange={(val) => setEditData({ ...editData, department: val })}>
+                                    <SelectTrigger className="bg-neutral-800 border-neutral-700 text-white">
+                                        <SelectValue placeholder="Select Department" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
+                                        {DEPARTMENTS.map((dept) => (
+                                            <SelectItem key={dept} value={dept}>
+                                                {dept}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Year</Label>
+                                    <Select value={editData.year} onValueChange={(val) => setEditData({ ...editData, year: val })}>
+                                        <SelectTrigger className="bg-neutral-800 border-neutral-700 text-white">
+                                            <SelectValue placeholder="Year" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
+                                            <SelectItem value="1">1st Year</SelectItem>
+                                            <SelectItem value="2">2nd Year</SelectItem>
+                                            <SelectItem value="3">3rd Year</SelectItem>
+                                            <SelectItem value="4">4th Year</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Semester</Label>
+                                    <Select value={editData.semester} onValueChange={(val) => setEditData({ ...editData, semester: val })}>
+                                        <SelectTrigger className="bg-neutral-800 border-neutral-700 text-white">
+                                            <SelectValue placeholder="Semester" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
+                                            {[1, 2, 3, 4, 5, 6, 7, 8].map(s => <SelectItem key={s} value={String(s)}>Sem {s}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Section</Label>
+                                    <Select value={editData.section} onValueChange={(val) => setEditData({ ...editData, section: val })}>
+                                        <SelectTrigger className="bg-neutral-800 border-neutral-700 text-white">
+                                            <SelectValue placeholder="Section" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
+                                            {['A', 'B', 'C', 'D'].map(s => <SelectItem key={s} value={s}>Sec {s}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            <DialogFooter>
+                                <Button type="submit" className="bg-blue-600 hover:bg-blue-700">Save Changes</Button>
                             </DialogFooter>
                         </form>
                     </DialogContent>
@@ -239,14 +406,24 @@ export function StudentManagement() {
                                         </span>
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="hover:bg-red-500/10 hover:text-red-400 text-neutral-500 transition-colors"
-                                            onClick={() => handleDelete(student.id)} // Used student.id instead of undefined user_id
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
+                                        <div className="flex justify-end gap-2">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="hover:bg-blue-500/10 hover:text-blue-400 text-neutral-500 transition-colors"
+                                                onClick={() => openEditDialog(student)}
+                                            >
+                                                <Pencil className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="hover:bg-red-500/10 hover:text-red-400 text-neutral-500 transition-colors"
+                                                onClick={() => handleDelete(student.id)}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))

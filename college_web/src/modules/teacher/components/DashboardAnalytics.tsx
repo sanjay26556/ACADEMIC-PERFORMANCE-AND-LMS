@@ -7,6 +7,18 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Trophy, TrendingUp, AlertCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
+export const fetchWithAuth = async (url: string, options: any = {}) => {
+    const res = await fetch(url, options);
+    if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/lms/teacher/login';
+        throw new Error('Unauthorized');
+    }
+    return res;
+};
+
+
 const API_URL = 'http://localhost:5000';
 const getAuthHeaders = () => ({
     'Content-Type': 'application/json',
@@ -27,7 +39,7 @@ export default function DashboardAnalytics() {
 
     // Initial Load - Courses
     useEffect(() => {
-        fetch(`${API_URL}/teacher/courses`, { headers: getAuthHeaders() })
+        fetchWithAuth(`${API_URL}/teacher/courses`, { headers: getAuthHeaders() })
             .then(res => res.json())
             .then(data => {
                 if (Array.isArray(data)) setCourses(data);
@@ -44,7 +56,7 @@ export default function DashboardAnalytics() {
                 // For simplicity, let's fetch all and filter client side or just fetch all for now.
                 // Actually, the endpoints support filtering.
                 // Let's just fetch all for the teacher and filter by course if needed.
-                const res = await fetch(url, { headers: getAuthHeaders() });
+                const res = await fetchWithAuth(url, { headers: getAuthHeaders() });
                 const data = await res.json();
 
                 if (Array.isArray(data)) {
@@ -82,7 +94,7 @@ export default function DashboardAnalytics() {
     useEffect(() => {
         if (!selectedItem) return;
         setLoading(true);
-        fetch(`${API_URL}/teacher/dashboard/analytics?type=${type}&id=${selectedItem}&course_id=${selectedCourse !== 'All' ? selectedCourse : ''}`, {
+        fetchWithAuth(`${API_URL}/teacher/dashboard/analytics?type=${type}&id=${selectedItem}&course_id=${selectedCourse !== 'All' ? selectedCourse : ''}`, {
             headers: getAuthHeaders()
         })
             .then(res => res.json())

@@ -11,6 +11,18 @@ import { Plus, Filter, Calendar, Clock, BookOpen, Code, FileText, MoreVertical, 
 import { toast } from "sonner";
 import AssessmentBuilder from "./AssessmentBuilder";
 
+export const fetchWithAuth = async (url: string, options: any = {}) => {
+    const res = await fetch(url, options);
+    if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/lms/teacher/login';
+        throw new Error('Unauthorized');
+    }
+    return res;
+};
+
+
 // Helper
 const API_URL = 'http://localhost:5000';
 const getAuthHeaders = () => ({
@@ -42,7 +54,7 @@ export default function AssessmentsManager() {
             if (filterType !== "All") url += `type=${filterType}&`;
             if (filterAssignment !== "All") url += `assignment_id=${filterAssignment}&`;
 
-            const res = await fetch(url, { headers: getAuthHeaders() });
+            const res = await fetchWithAuth(url, { headers: getAuthHeaders() });
             const data = await res.json();
             if (Array.isArray(data)) setAssessments(data);
         } catch (err) {
@@ -55,7 +67,7 @@ export default function AssessmentsManager() {
 
     const fetchAssignments = async () => {
         try {
-            const res = await fetch(`${API_URL}/assignments`, { headers: getAuthHeaders() });
+            const res = await fetchWithAuth(`${API_URL}/assignments`, { headers: getAuthHeaders() });
             const data = await res.json();
             if (Array.isArray(data)) setAssignments(data);
         } catch (err) {
@@ -65,7 +77,7 @@ export default function AssessmentsManager() {
 
     const updateStatus = async (id: number, newStatus: string) => {
         try {
-            const res = await fetch(`${API_URL}/assessments/${id}/status`, {
+            const res = await fetchWithAuth(`${API_URL}/assessments/${id}/status`, {
                 method: 'PATCH',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({ status: newStatus })

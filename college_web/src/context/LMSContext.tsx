@@ -40,6 +40,7 @@ export interface LMSContextType {
     // Actions
     addStudent: (studentData: any) => Promise<void>;
     addTeacher: (teacherData: any) => Promise<void>;
+    editUser: (id: number, userData: any) => Promise<void>;
     deleteUser: (userId: number) => Promise<void>;
     addStudentToClass: (registerNumber: string) => Promise<boolean>;
 
@@ -80,6 +81,12 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             try {
                 // Fetch Users (Students & Teachers)
                 const usersRes = await fetch(`${API_URL}/admin/users`, { headers: getAuthHeaders() });
+                if (usersRes.status === 401 || usersRes.status === 403) {
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    window.location.href = '/lms/admin/login';
+                    return;
+                }
                 if (usersRes.ok) {
                     const users = await usersRes.json();
                     setStudents(users.filter((u: any) => u.role === 'student'));
@@ -117,6 +124,14 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 headers: getAuthHeaders(),
                 body: JSON.stringify({ ...studentData, role: 'student' })
             });
+            
+            if (res.status === 401 || res.status === 403) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                window.location.href = '/lms/admin/login';
+                throw new Error("Session expired or unauthorized. Please login again.");
+            }
+
             const data = await res.json();
             if (!res.ok) throw new Error(data.message);
 
@@ -135,6 +150,14 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 headers: getAuthHeaders(),
                 body: JSON.stringify({ ...teacherData, role: 'teacher' })
             });
+
+            if (res.status === 401 || res.status === 403) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                window.location.href = '/lms/admin/login';
+                throw new Error("Session expired or unauthorized. Please login again.");
+            }
+
             const data = await res.json();
             if (!res.ok) throw new Error(data.message);
 
@@ -142,6 +165,32 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             fetchData(); // Refresh list
         } catch (error: any) {
             toast.error(error.message || "Failed to add teacher");
+            throw error;
+        }
+    };
+
+    const editUser = async (id: number, userData: any) => {
+        try {
+            const res = await fetch(`${API_URL}/admin/users/${id}`, {
+                method: 'PUT',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(userData)
+            });
+
+            if (res.status === 401 || res.status === 403) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                window.location.href = '/lms/admin/login';
+                throw new Error("Session expired or unauthorized. Please login again.");
+            }
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message);
+
+            toast.success("User updated successfully");
+            fetchData(); // Refresh list
+        } catch (error: any) {
+            toast.error(error.message || "Failed to update user");
             throw error;
         }
     };
@@ -189,6 +238,7 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             refreshData: fetchData,
             addStudent,
             addTeacher,
+            editUser,
             deleteUser,
             addStudentToClass,
             isLoading

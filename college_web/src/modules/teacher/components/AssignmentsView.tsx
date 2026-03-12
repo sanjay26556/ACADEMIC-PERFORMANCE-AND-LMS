@@ -9,6 +9,18 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Code, BookOpen, BrainCircuit, Calendar, Video, FileText, Plus, Trash2 } from "lucide-react";
 
+export const fetchWithAuth = async (url: string, options: any = {}) => {
+    const res = await fetch(url, options);
+    if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/lms/teacher/login';
+        throw new Error('Unauthorized');
+    }
+    return res;
+};
+
+
 
 
 const API_URL = 'http://localhost:5000';
@@ -39,7 +51,7 @@ export default function AssignmentsView() {
 
     const fetchAssignments = async () => {
         try {
-            const res = await fetch(`${API_URL}/assignments`, { headers: getAuthHeaders() });
+            const res = await fetchWithAuth(`${API_URL}/assignments`, { headers: getAuthHeaders() });
             const data = await res.json();
             if (res.ok) setAssignments(data);
         } catch (err) {
@@ -49,7 +61,7 @@ export default function AssignmentsView() {
 
     const fetchCourses = async () => {
         try {
-            const res = await fetch(`${API_URL}/teacher/courses`, { headers: getAuthHeaders() });
+            const res = await fetchWithAuth(`${API_URL}/teacher/courses`, { headers: getAuthHeaders() });
             const data = await res.json();
             if (res.ok) setCourses(data);
         } catch (err) {
@@ -69,7 +81,7 @@ export default function AssignmentsView() {
         };
 
         try {
-            const res = await fetch(`${API_URL}/assignments`, {
+            const res = await fetchWithAuth(`${API_URL}/assignments`, {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify(payload)
@@ -98,7 +110,7 @@ export default function AssignmentsView() {
     const handleDelete = async (id: number) => {
         if (!confirm("Are you sure?")) return;
         try {
-            const res = await fetch(`${API_URL}/assignments/${id}`, {
+            const res = await fetchWithAuth(`${API_URL}/assignments/${id}`, {
                 method: 'DELETE',
                 headers: getAuthHeaders()
             });

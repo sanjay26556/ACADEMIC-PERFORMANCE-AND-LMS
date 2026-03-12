@@ -47,7 +47,7 @@ type UserStatus = 'active' | 'suspended' | 'inactive';
 
 interface UnifiedUser {
     id: string;
-    originalId: string;
+    originalId: string | number;
     name: string;
     email: string;
     role: UserRole;
@@ -60,7 +60,7 @@ interface UnifiedUser {
 }
 
 export function UserDirectory() {
-    const { students, teachers, deleteStudent, deleteTeacher } = useLMS();
+    const { students, teachers, deleteUser } = useLMS();
     const [searchTerm, setSearchTerm] = useState("");
     const [roleFilter, setRoleFilter] = useState<"all" | UserRole>("all");
     const [selectedUser, setSelectedUser] = useState<UnifiedUser | null>(null);
@@ -129,10 +129,10 @@ export function UserDirectory() {
 
         if (confirm(`Are you sure you want to delete ${user.name}? This action cannot be undone.`)) {
             if (user.role === 'student') {
-                deleteStudent(user.originalId);
+                deleteUser(Number(user.originalId));
                 toast.success("Student deleted successfully.");
             } else if (user.role === 'teacher') {
-                deleteTeacher(user.originalId);
+                deleteUser(Number(user.originalId));
                 toast.success("Teacher deleted successfully.");
             }
         }
@@ -275,8 +275,8 @@ export function UserDirectory() {
                         <Card key={user.id} className="group bg-neutral-900/40 backdrop-blur-sm border border-white/5 hover:bg-neutral-800/60 hover:border-white/10 hover:shadow-2xl hover:shadow-black/50 transition-all duration-300 rounded-2xl overflow-hidden relative flex flex-col">
                             {/* Decorative Top Border based on Role */}
                             <div className={`h-1 w-full absolute top-0 left-0 ${user.role === 'admin' ? 'bg-orange-500' :
-                                    user.role === 'teacher' ? 'bg-purple-500' :
-                                        'bg-cyan-500'
+                                user.role === 'teacher' ? 'bg-purple-500' :
+                                    'bg-cyan-500'
                                 }`} />
 
                             <div className="absolute top-4 right-4">
@@ -305,22 +305,22 @@ export function UserDirectory() {
                             <CardContent className="pt-8 pb-4 flex-1 flex flex-col items-center text-center space-y-4">
                                 <div className="relative">
                                     <div className={`absolute -inset-1 rounded-full blur opacity-0 group-hover:opacity-50 transition duration-500 ${user.role === 'admin' ? 'bg-orange-500' :
-                                            user.role === 'teacher' ? 'bg-purple-500' :
-                                                'bg-cyan-500'
+                                        user.role === 'teacher' ? 'bg-purple-500' :
+                                            'bg-cyan-500'
                                         }`}></div>
                                     <Avatar className="h-20 w-20 border-2 border-neutral-800 relative shadow-xl">
                                         <AvatarImage src={user.avatarUrl} />
                                         <AvatarFallback className={`text-lg font-bold ${user.role === 'admin' ? 'bg-orange-500 text-white' :
-                                                user.role === 'teacher' ? 'bg-purple-900 text-purple-200' :
-                                                    'bg-cyan-950 text-cyan-300'
+                                            user.role === 'teacher' ? 'bg-purple-900 text-purple-200' :
+                                                'bg-cyan-950 text-cyan-300'
                                             }`}>
                                             {getInitials(user.name)}
                                         </AvatarFallback>
                                     </Avatar>
                                     <div className="absolute -bottom-2 -right-2 bg-neutral-900 rounded-full p-1 border border-neutral-800">
                                         <div className={`p-1 rounded-full ${user.role === 'admin' ? 'bg-orange-500/20' :
-                                                user.role === 'teacher' ? 'bg-purple-500/20' :
-                                                    'bg-cyan-500/20'
+                                            user.role === 'teacher' ? 'bg-purple-500/20' :
+                                                'bg-cyan-500/20'
                                             }`}>
                                             {getRoleIcon(user.role)}
                                         </div>

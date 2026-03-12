@@ -6,7 +6,7 @@ const { authenticateToken, authorizeRole } = require('../middleware/auth');
 
 // Create User (Admin Only)
 router.post('/create-user', authenticateToken, authorizeRole(['admin']), async (req, res) => {
-    const { register_number, role, dob, name, email, department } = req.body;
+    const { register_number, role, dob, name, email, department, year, semester, section } = req.body;
 
     if (!register_number || !role || !dob || !name) {
         return res.status(400).json({ message: 'Missing required fields' });
@@ -47,8 +47,8 @@ router.post('/create-user', authenticateToken, authorizeRole(['admin']), async (
             // Insert into specific role table
             if (role === 'student') {
                 await client.query(
-                    'INSERT INTO students (user_id, name, email, department_id) VALUES ($1, $2, $3, $4)',
-                    [userId, name, email || null, deptId]
+                    'INSERT INTO students (user_id, name, email, department_id, batch_year, current_semester, section) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+                    [userId, name, email || null, deptId, year || 1, semester || 1, section || 'A']
                 );
             } else if (role === 'teacher') {
                 await client.query(
@@ -89,6 +89,59 @@ router.get('/users', authenticateToken, authorizeRole(['admin']), async (req, re
         `);
 
         res.json([...students.rows, ...teachers.rows]);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Edit User (Admin Only)
+router.put('/users/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    const userId = req.params.id;
+    const { register_number, name, email, department, year, semester, section } = req.body;
+
+    try {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+
+            if (register_number) {
+                await client.query('UPDATE users SET register_number = $1 WHERE id = $2', [register_number, userId]);
+            }
+
+            let deptId = null;
+            if (department) {
+                const deptRes = await client.query('SELECT id FROM departments WHERE name = $1', [department]);
+                if (deptRes.rows.length > 0) {
+                    deptId = deptRes.rows[0].id;
+                }
+            }
+
+            // check role
+            const userRes = await client.query('SELECT role FROM users WHERE id = $1', [userId]);
+            if (userRes.rows.length === 0) throw new Error('User not found');
+            const role = userRes.rows[0].role;
+
+            if (role === 'student') {
+                await client.query(
+                    'UPDATE students SET name = $1, email = $2, department_id = $3, batch_year = $4, current_semester = $5, section = $6 WHERE user_id = $7',
+                    [name, email || null, deptId, year || 1, semester || 1, section || 'A', userId]
+                );
+            } else if (role === 'teacher') {
+                await client.query(
+                    'UPDATE teachers SET name = $1, email = $2, department_id = $3 WHERE user_id = $4',
+                    [name, email || null, deptId, userId]
+                );
+            }
+
+            await client.query('COMMIT');
+            res.json({ message: 'User updated successfully' });
+        } catch (err) {
+            await client.query('ROLLBACK');
+            throw err;
+        } finally {
+            client.release();
+        }
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Server error' });

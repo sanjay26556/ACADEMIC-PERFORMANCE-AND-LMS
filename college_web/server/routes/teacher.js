@@ -31,23 +31,60 @@ router.use(authenticateToken, authorizeRole(['teacher']), getTeacherId);
 
 // Create a New Course
 router.post('/courses', async (req, res) => {
-    const { name, code, year, semester, section } = req.body;
+    const { name, code, year, semester, section, department_id } = req.body;
 
-    if (!name || !code || !year || !semester || !section) {
+    if (!name || !code || !year || !semester || !section || !department_id) {
         return res.status(400).json({ message: 'All fields are required' });
     }
 
+    const client = await pool.connect();
     try {
-        const result = await pool.query(
-            `INSERT INTO courses (teacher_id, name, code, year, semester, section) 
-             VALUES ($1, $2, $3, $4, $5, $6) 
+        await client.query('BEGIN');
+
+        // 1. Insert course
+        const result = await client.query(
+            `INSERT INTO courses (teacher_id, name, code, year, semester, section, department_id) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7) 
              RETURNING *`,
-            [req.teacher.id, name, code, year, semester, section]
+            [req.teacher.id, name, code, year, semester, section, department_id]
         );
-        res.status(201).json({ message: 'Course created successfully', course: result.rows[0] });
+        
+        const newCourse = result.rows[0];
+
+        // 2. Auto-enroll matching students
+        const studentsRes = await client.query(`
+            SELECT id FROM students 
+            WHERE department_id = $1 
+              AND current_semester = $2 
+              AND section = $3
+        `, [department_id, parseInt(semester), section]);
+
+        const studentsToEnroll = studentsRes.rows;
+        
+        // Let's also verify year matching if batch_year logic is used, but student has current_semester and section.
+        // The DB schema for students has: department_id, current_semester, section, batch_year.
+        // It does not have 'year' directly, but current_semester implies the year.
+        // Course has year, semester, section. We'll match against current_semester and section, as those define the student's current class.
+        
+        for (const student of studentsToEnroll) {
+            await client.query(
+                `INSERT INTO course_enrollments (course_id, student_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+                [newCourse.id, student.id]
+            );
+        }
+
+        await client.query('COMMIT');
+        res.status(201).json({ 
+            message: 'Course created and students auto-enrolled successfully', 
+            course: newCourse,
+            enrolledCount: studentsToEnroll.length
+        });
     } catch (err) {
-        console.error(err);
+        await client.query('ROLLBACK');
+        console.error("Error creating course:", err);
         res.status(500).json({ message: 'Server error creating course' });
+    } finally {
+        client.release();
     }
 });
 
@@ -152,6 +189,21 @@ router.get('/courses/:courseId/students', async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Server error fetching students' });
+    }
+});
+
+// Remove Student from Course
+router.delete('/courses/:courseId/students/:studentId', async (req, res) => {
+    const { courseId, studentId } = req.params;
+    try {
+        const courseCheck = await pool.query('SELECT id FROM courses WHERE id = $1 AND teacher_id = $2', [courseId, req.teacher.id]);
+        if (courseCheck.rows.length === 0) return res.status(403).json({ message: 'Course not found or unauthorized' });
+
+        await pool.query('DELETE FROM course_enrollments WHERE course_id = $1 AND student_id = $2', [courseId, studentId]);
+        res.json({ message: 'Student removed from course successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error removing student' });
     }
 });
 

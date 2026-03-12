@@ -243,7 +243,7 @@ export function TeacherManagement() {
                                             variant="ghost"
                                             size="icon"
                                             className="hover:bg-red-500/10 hover:text-red-400 text-neutral-500 transition-colors"
-                                            onClick={() => handleDelete(teacher.user_id)}
+                                            onClick={() => handleDelete(teacher.id)}
                                         >
                                             <Trash2 className="h-4 w-4" />
                                         </Button>

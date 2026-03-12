@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -7,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { auth } from "@/lib/api";
+import { Home } from "lucide-react";
 
 const TeacherLogin = () => {
     const [email, setEmail] = useState("");
@@ -36,25 +36,23 @@ const TeacherLogin = () => {
     };
 
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-950 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(245,158,11,0.15),rgba(255,255,255,0))] p-4">
-            <div className="mb-8 text-center">
+        <div className="relative min-h-screen flex flex-col items-center justify-center bg-neutral-950 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(245,158,11,0.15),rgba(255,255,255,0))] p-4">
+            <div className="absolute top-4 left-4 md:top-8 md:left-8">
+                <Link to="/">
+                    <Button variant="ghost" className="text-neutral-400 hover:text-white">
+                        <Home className="w-5 h-5 md:mr-2" />
+                        <span className="hidden md:inline">Back to Home</span>
+                    </Button>
+                </Link>
+            </div>
+
+            <div className="mb-8 text-center mt-12 md:mt-0">
                 <h1 className="text-4xl font-bold bg-gradient-to-r from-white to-neutral-400 bg-clip-text text-transparent">EduPulse LMS</h1>
                 <p className="text-neutral-500 mt-2">Learning Management System</p>
             </div>
 
             <Card className="w-full max-w-md shadow-2xl border-neutral-800 bg-neutral-900/50 backdrop-blur-xl">
                 <CardHeader className="space-y-1 pb-2">
-                    {/* Top Switcher */}
-                    <div className="grid grid-cols-3 gap-2 mb-6 p-1 bg-neutral-950/50 rounded-lg border border-neutral-800">
-                        <Link to="/lms/student/login">
-                            <Button variant="ghost" className="w-full text-neutral-400 hover:text-green-400 hover:bg-neutral-800/50">Student</Button>
-                        </Link>
-                        <Button variant="ghost" className="bg-neutral-800 text-amber-400 shadow-sm">Teacher</Button>
-                        <Link to="/lms/admin/login">
-                            <Button variant="ghost" className="w-full text-neutral-400 hover:text-white hover:bg-neutral-800/50">Admin</Button>
-                        </Link>
-                    </div>
-
                     <CardTitle className="text-2xl font-bold text-center text-amber-400">Teacher Portal</CardTitle>
                     <CardDescription className="text-center text-neutral-400">Manage student enrollments and progress</CardDescription>
                 </CardHeader>

@@ -11,6 +11,18 @@ import { Save, Upload, Download, Loader2, FileSpreadsheet, AlertTriangle, CheckC
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+export const fetchWithAuth = async (url: string, options: any = {}) => {
+    const res = await fetch(url, options);
+    if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/lms/teacher/login';
+        throw new Error('Unauthorized');
+    }
+    return res;
+};
+
+
 const API_URL = 'http://localhost:5000';
 const getAuthHeaders = () => ({
     'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -42,7 +54,7 @@ export default function MarksManagement() {
 
     // Initial Load - Get All Courses
     useEffect(() => {
-        fetch(`${API_URL}/teacher/courses`, { headers: getAuthHeaders() })
+        fetchWithAuth(`${API_URL}/teacher/courses`, { headers: getAuthHeaders() })
             .then(res => res.json())
             .then(data => {
                 if (Array.isArray(data)) {
@@ -72,7 +84,7 @@ export default function MarksManagement() {
     useEffect(() => {
         if (!selectedCourseId) return;
         setLoading(true);
-        fetch(`${API_URL}/teacher/marks/${selectedCourseId}`, { headers: getAuthHeaders() })
+        fetchWithAuth(`${API_URL}/teacher/marks/${selectedCourseId}`, { headers: getAuthHeaders() })
             .then(res => res.json())
             .then(data => {
                 if (Array.isArray(data)) setStudents(data);
@@ -158,7 +170,7 @@ export default function MarksManagement() {
                 return;
             }
 
-            const res = await fetch(`${API_URL}/teacher/marks`, {
+            const res = await fetchWithAuth(`${API_URL}/teacher/marks`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -178,7 +190,7 @@ export default function MarksManagement() {
                     setImportFile(null);
                 }
                 // Refresh
-                const refresh = await fetch(`${API_URL}/teacher/marks/${selectedCourseId}`, { headers: getAuthHeaders() });
+                const refresh = await fetchWithAuth(`${API_URL}/teacher/marks/${selectedCourseId}`, { headers: getAuthHeaders() });
                 const data = await refresh.json();
                 setStudents(data);
             }
@@ -194,7 +206,7 @@ export default function MarksManagement() {
     // Export Excel
     const handleExportExcel = async () => {
         try {
-            const res = await fetch(`${API_URL}/teacher/marks/export?course_id=${selectedCourseId}`, {
+            const res = await fetchWithAuth(`${API_URL}/teacher/marks/export?course_id=${selectedCourseId}`, {
                 headers: getAuthHeaders()
             });
             if (!res.ok) throw new Error();
@@ -223,7 +235,7 @@ export default function MarksManagement() {
         formData.append('course_id', selectedCourseId);
 
         try {
-            const res = await fetch(`${API_URL}/teacher/marks/validate-import`, {
+            const res = await fetchWithAuth(`${API_URL}/teacher/marks/validate-import`, {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: formData

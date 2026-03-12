@@ -27,6 +27,18 @@ const getAuthHeaders = () => ({
     'Authorization': `Bearer ${localStorage.getItem('token')}`
 });
 
+
+export const fetchWithAuth = async (url: string, options: any = {}) => {
+    const res = await fetch(url, options);
+    if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/lms/teacher/login';
+        throw new Error('Unauthorized');
+    }
+    return res;
+};
+
 export default function TeacherDashboard() {
     const [searchParams] = useSearchParams();
     const activeTab = searchParams.get("tab") || "overview";
@@ -86,7 +98,7 @@ function DashboardOverview() {
     const storedName = localStorage.getItem("currentUserName") || "Teacher";
 
     useEffect(() => {
-        fetch(`${API_URL}/teacher/dashboard-stats`, { headers: getAuthHeaders() })
+        fetchWithAuth(`${API_URL}/teacher/dashboard-stats`, { headers: getAuthHeaders() })
             .then(res => res.json())
             .then(data => setStats(data))
             .catch(err => console.error(err));
@@ -133,7 +145,7 @@ function ManageStudents() {
 
     // Fetch Courses
     useEffect(() => {
-        fetch(`${API_URL}/teacher/courses`, { headers: getAuthHeaders() })
+        fetchWithAuth(`${API_URL}/teacher/courses`, { headers: getAuthHeaders() })
             .then(res => res.json())
             .then(data => {
                 if (Array.isArray(data)) {
@@ -147,7 +159,7 @@ function ManageStudents() {
     // Fetch Students for Course
     const fetchStudents = () => {
         if (!selectedCourse) return;
-        fetch(`${API_URL}/teacher/courses/${selectedCourse}/students`, { headers: getAuthHeaders() })
+        fetchWithAuth(`${API_URL}/teacher/courses/${selectedCourse}/students`, { headers: getAuthHeaders() })
             .then(res => res.json())
             .then(data => {
                 if (Array.isArray(data)) setStudents(data);
@@ -160,13 +172,35 @@ function ManageStudents() {
         fetchStudents();
     }, [selectedCourse]);
 
+    const handleRemoveStudent = async (studentId: string) => {
+        if (!confirm("Remove this student from the course?")) return;
+        setLoading(true);
+        try {
+            const res = await fetchWithAuth(`${API_URL}/teacher/courses/${selectedCourse}/students/${studentId}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders()
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast.success(data.message || "Student removed");
+                fetchStudents();
+            } else {
+                toast.error(data.message || "Failed to remove student");
+            }
+        } catch (err) {
+            toast.error("Error removing student");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleAddStudent = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!regNo || !selectedCourse) return;
 
         setLoading(true);
         try {
-            const res = await fetch(`${API_URL}/teacher/courses/${selectedCourse}/enroll`, {
+            const res = await fetchWithAuth(`${API_URL}/teacher/courses/${selectedCourse}/enroll`, {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({ register_number: regNo })
@@ -211,60 +245,87 @@ function ManageStudents() {
 
             {selectedCourse && (
                 <>
-                    {/* Add Student Form */}
-                    <Card className="bg-neutral-900/50 border-neutral-800">
-                        <CardHeader>
-                            <CardTitle className="text-lg">Enroll Student</CardTitle>
-                            <CardDescription>Enter Register Number to enroll student in selected course.</CardDescription>
+                    {/* Students List & Manual Override */}
+                    <Card className="bg-neutral-900/40 border-neutral-800">
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <div>
+                                <CardTitle className="text-lg">Enrolled Students ({students.length})</CardTitle>
+                                <CardDescription className="text-emerald-400 mt-1">
+                                    Students are automatically enrolled based on Department, Year, Semester, and Section.
+                                </CardDescription>
+                            </div>
+                            <Dialog>
+                                <DialogTrigger asChild>
+                                    <Button variant="outline" className="border-neutral-700 hover:bg-neutral-800 bg-neutral-950">
+                                        <Plus className="h-4 w-4 mr-2" /> Manual Add
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="bg-neutral-950 border-neutral-800">
+                                    <DialogHeader>
+                                        <DialogTitle className="text-white">Manually Add Student</DialogTitle>
+                                        <DialogDescription className="text-neutral-400">
+                                            Override automatic enrollment by adding a student manually using their Register Number.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <form onSubmit={handleAddStudent} className="space-y-4 pt-4">
+                                        <div className="space-y-2">
+                                            <Label>Register Number</Label>
+                                            <Input
+                                                placeholder="e.g., 21CSE001"
+                                                value={regNo}
+                                                onChange={e => setRegNo(e.target.value)}
+                                                className="bg-neutral-900 border-neutral-700"
+                                                required
+                                            />
+                                        </div>
+                                        <DialogFooter>
+                                            <Button type="submit" disabled={loading} className="bg-emerald-600 hover:bg-emerald-700">
+                                                {loading ? "Adding..." : "Add Student"}
+                                            </Button>
+                                        </DialogFooter>
+                                    </form>
+                                </DialogContent>
+                            </Dialog>
                         </CardHeader>
                         <CardContent>
-                            <form onSubmit={handleAddStudent} className="flex gap-4 items-center">
-                                <div className="flex-1 max-w-sm">
-                                    <Input
-                                        placeholder="Enter Register Number (e.g., 21CSE001)"
-                                        value={regNo}
-                                        onChange={e => setRegNo(e.target.value)}
-                                        className="bg-neutral-950/50 border-neutral-700"
-                                    />
-                                </div>
-                                <Button type="submit" disabled={loading} className="bg-emerald-600 hover:bg-emerald-700">
-                                    {loading ? "Adding..." : "Enroll Student"}
-                                </Button>
-                            </form>
-                        </CardContent>
-                    </Card>
-
-                    {/* Students List */}
-                    <Card className="bg-neutral-900/40 border-neutral-800">
-                        <CardHeader>
-                            <CardTitle className="text-lg">Enrolled Students ({students.length})</CardTitle>
-                        </CardHeader>
-                        <Table>
-                            <TableHeader>
-                                <TableRow className="border-neutral-800">
-                                    <TableHead className="text-neutral-400">Register No</TableHead>
-                                    <TableHead className="text-neutral-400">Name</TableHead>
-                                    <TableHead className="text-neutral-400">Email</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {students.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={3} className="text-center py-8 text-neutral-500">
-                                            No students enrolled yet.
-                                        </TableCell>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow className="border-neutral-800">
+                                        <TableHead className="text-neutral-400">Register No</TableHead>
+                                        <TableHead className="text-neutral-400">Name</TableHead>
+                                        <TableHead className="text-neutral-400">Email</TableHead>
+                                        <TableHead className="text-right text-neutral-400">Actions</TableHead>
                                     </TableRow>
-                                ) : (
-                                    students.map((student: any) => (
-                                        <TableRow key={student.id} className="border-neutral-800">
-                                            <TableCell className="font-mono text-neutral-300">{student.register_number}</TableCell>
-                                            <TableCell className="text-neutral-200">{student.name}</TableCell>
-                                            <TableCell className="text-neutral-400">{student.email || '-'}</TableCell>
+                                </TableHeader>
+                                <TableBody>
+                                    {students.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={4} className="text-center py-8 text-neutral-500">
+                                                No students enrolled yet.
+                                            </TableCell>
                                         </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
+                                    ) : (
+                                        students.map((student: any) => (
+                                            <TableRow key={student.id} className="border-neutral-800">
+                                                <TableCell className="font-mono text-neutral-300">{student.register_number}</TableCell>
+                                                <TableCell className="text-neutral-200">{student.name}</TableCell>
+                                                <TableCell className="text-neutral-400">{student.email || '-'}</TableCell>
+                                                <TableCell className="text-right">
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="sm" 
+                                                        onClick={() => handleRemoveStudent(student.id)}
+                                                        className="h-8 text-neutral-500 hover:text-red-400 hover:bg-red-950/30"
+                                                    >
+                                                        Remove
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
                     </Card>
                 </>
             )}
@@ -283,12 +344,13 @@ function MyCourses() {
 
     // New Course Form State
     const [newCourse, setNewCourse] = useState({
-        name: "", code: "", year: "1", semester: "1", section: "A"
+        name: "", code: "", department_id: "", year: "1", semester: "1", section: "A"
     });
     const [creating, setCreating] = useState(false);
+    const [departments, setDepartments] = useState([]);
 
     const fetchCourses = () => {
-        fetch(`${API_URL}/teacher/courses`, { headers: getAuthHeaders() })
+        fetchWithAuth(`${API_URL}/teacher/courses`, { headers: getAuthHeaders() })
             .then(res => res.json())
             .then(data => {
                 if (Array.isArray(data)) setCourses(data);
@@ -299,24 +361,31 @@ function MyCourses() {
 
     useEffect(() => {
         fetchCourses();
+        fetchWithAuth(`${API_URL}/admin/departments`, { headers: getAuthHeaders() })
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data)) setDepartments(data);
+            })
+            .catch(err => console.error(err));
     }, []);
 
     const handleCreateCourse = async () => {
-        if (!newCourse.name || !newCourse.code) {
-            toast.error("Please fill all fields");
+        if (!newCourse.name || !newCourse.code || !newCourse.department_id) {
+            toast.error("Please fill all fields, including department.");
             return;
         }
         setCreating(true);
         try {
-            const res = await fetch(`${API_URL}/teacher/courses`, {
+            const res = await fetchWithAuth(`${API_URL}/teacher/courses`, {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify(newCourse)
             });
+            const data = await res.json();
             if (res.ok) {
-                toast.success("Course created successfully");
+                toast.success(data?.message || "Course created successfully");
                 setIsAddOpen(false);
-                setNewCourse({ name: "", code: "", year: "1", semester: "1", section: "A" });
+                setNewCourse({ name: "", code: "", department_id: "", year: "1", semester: "1", section: "A" });
                 fetchCourses();
             } else {
                 toast.error("Failed to create course");
@@ -337,7 +406,7 @@ function MyCourses() {
         if (!deleteCourseId) return;
         setDeleting(true);
         try {
-            const res = await fetch(`${API_URL}/teacher/courses/${deleteCourseId}`, {
+            const res = await fetchWithAuth(`${API_URL}/teacher/courses/${deleteCourseId}`, {
                 method: 'DELETE',
                 headers: getAuthHeaders()
             });
@@ -395,6 +464,19 @@ function MyCourses() {
                                         className="bg-neutral-900 border-neutral-700"
                                     />
                                 </div>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Department</Label>
+                                <Select value={newCourse.department_id} onValueChange={v => setNewCourse({ ...newCourse, department_id: v })}>
+                                    <SelectTrigger className="bg-neutral-900 border-neutral-700">
+                                        <SelectValue placeholder="Select Department" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {departments.map((d: any) => (
+                                            <SelectItem key={d.id} value={String(d.id)}>{d.name} ({d.code})</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div className="grid grid-cols-3 gap-4">
                                 <div className="space-y-2">
@@ -516,7 +598,7 @@ function AttendanceTracker() {
     const [attendance, setAttendance] = useState<Record<string, string>>({});
 
     useEffect(() => {
-        fetch(`${API_URL}/teacher/courses`, { headers: getAuthHeaders() })
+        fetchWithAuth(`${API_URL}/teacher/courses`, { headers: getAuthHeaders() })
             .then(res => res.json())
             .then(data => {
                 if (Array.isArray(data)) {
@@ -529,7 +611,7 @@ function AttendanceTracker() {
 
     useEffect(() => {
         if (!selectedCourse) return;
-        fetch(`${API_URL}/teacher/courses/${selectedCourse}/students`, { headers: getAuthHeaders() })
+        fetchWithAuth(`${API_URL}/teacher/courses/${selectedCourse}/students`, { headers: getAuthHeaders() })
             .then(res => res.json())
             .then(data => {
                 setStudents(data);
@@ -552,7 +634,7 @@ function AttendanceTracker() {
         }));
 
         try {
-            const res = await fetch(`${API_URL}/teacher/attendance`, {
+            const res = await fetchWithAuth(`${API_URL}/teacher/attendance`, {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({
@@ -666,7 +748,7 @@ function ReportsAnalytics() {
     const [sending, setSending] = useState(false);
 
     useEffect(() => {
-        fetch(`${API_URL}/teacher/analytics`, { headers: getAuthHeaders() })
+        fetchWithAuth(`${API_URL}/teacher/analytics`, { headers: getAuthHeaders() })
             .then(res => res.json())
             .then(data => {
                 setStudents(data);
@@ -704,7 +786,7 @@ function ReportsAnalytics() {
 
         setSending(true);
         try {
-            const res = await fetch(`${API_URL}/teacher/notifications/send-alerts`, {
+            const res = await fetchWithAuth(`${API_URL}/teacher/notifications/send-alerts`, {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({ student_ids: targets, type })

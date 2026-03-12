@@ -9,6 +9,18 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Plus, Trash2, ArrowRight, ArrowLeft, Save, Calendar, Clock, AlertTriangle } from "lucide-react";
 
+export const fetchWithAuth = async (url: string, options: any = {}) => {
+    const res = await fetch(url, options);
+    if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/lms/teacher/login';
+        throw new Error('Unauthorized');
+    }
+    return res;
+};
+
+
 const API_URL = 'http://localhost:5000';
 const getAuthHeaders = () => ({
     'Content-Type': 'application/json',
@@ -59,7 +71,7 @@ export default function AssessmentBuilder({ onSuccess }: { onSuccess: () => void
 
     const fetchAssignments = async () => {
         try {
-            const res = await fetch(`${API_URL}/assignments`, { headers: getAuthHeaders() });
+            const res = await fetchWithAuth(`${API_URL}/assignments`, { headers: getAuthHeaders() });
             const data = await res.json();
             if (Array.isArray(data)) setAssignments(data);
         } catch (err) {
@@ -107,7 +119,7 @@ export default function AssessmentBuilder({ onSuccess }: { onSuccess: () => void
         };
 
         try {
-            const res = await fetch(`${API_URL}/assessments`, {
+            const res = await fetchWithAuth(`${API_URL}/assessments`, {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify(payload)
