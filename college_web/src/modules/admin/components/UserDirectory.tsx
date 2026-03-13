@@ -35,11 +35,17 @@ import {
     DialogFooter
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { MoreHorizontal, Search, ShieldAlert, Mail, User as UserIcon, Filter, X, Zap, Trophy, Crown, ShieldCheck, Sparkles } from "lucide-react";
+import { MoreHorizontal, Search, ShieldAlert, Mail, User as UserIcon, Filter, X, Trophy, Crown, ShieldCheck, BookOpen, Clock, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
+import {
+    HoverCard,
+    HoverCardContent,
+    HoverCardTrigger,
+} from "@/components/ui/hover-card";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Unified User Type
 type UserRole = 'student' | 'teacher' | 'admin';
@@ -55,12 +61,11 @@ interface UnifiedUser {
     status: UserStatus;
     joinDate: string;
     avatarUrl?: string;
-    level?: number; // Gamification
-    xp?: number;    // Gamification
+    relatedCourses?: any[];
 }
 
 export function UserDirectory() {
-    const { students, teachers, deleteUser } = useLMS();
+    const { students, teachers, courses, deleteUser } = useLMS();
     const [searchTerm, setSearchTerm] = useState("");
     const [roleFilter, setRoleFilter] = useState<"all" | UserRole>("all");
     const [selectedUser, setSelectedUser] = useState<UnifiedUser | null>(null);
@@ -68,30 +73,34 @@ export function UserDirectory() {
 
     // 1. Aggregate Data
     const allUsers: UnifiedUser[] = [
-        ...students.map(s => ({
-            id: `s-${s.id}`,
-            originalId: s.id,
-            name: s.name,
-            email: s.email,
-            role: 'student' as UserRole,
-            department: s.department,
-            status: 'active' as UserStatus,
-            joinDate: '2024-01-15',
-            level: Math.floor(Math.random() * 20) + 1,
-            xp: Math.floor(Math.random() * 100)
-        })),
-        ...teachers.map(t => ({
-            id: `t-${t.id}`,
-            originalId: t.id,
-            name: t.name,
-            email: t.email,
-            role: 'teacher' as UserRole,
-            department: t.department,
-            status: 'active' as UserStatus,
-            joinDate: '2023-08-20',
-            level: Math.floor(Math.random() * 50) + 20,
-            xp: Math.floor(Math.random() * 100)
-        })),
+        ...students.map((s: any) => {
+            const studentCourses = s.enrolled_courses || [];
+            return {
+                id: `s-${s.id}`,
+                originalId: s.id,
+                name: s.name,
+                email: s.email,
+                role: 'student' as UserRole,
+                department: s.department,
+                status: 'active' as UserStatus,
+                joinDate: '2024-01-15',
+                relatedCourses: courses ? courses.filter((c: any) => studentCourses.includes(c.id)) : []
+            };
+        }),
+        ...teachers.map((t: any) => {
+            const teacherCourses = t.assigned_courses || [];
+            return {
+                id: `t-${t.id}`,
+                originalId: t.id,
+                name: t.name,
+                email: t.email,
+                role: 'teacher' as UserRole,
+                department: t.department,
+                status: 'active' as UserStatus,
+                joinDate: '2023-08-20',
+                relatedCourses: courses ? courses.filter((c: any) => teacherCourses.includes(c.id)) : []
+            };
+        }),
         {
             id: 'admin-1',
             originalId: 'admin-1',
@@ -101,8 +110,7 @@ export function UserDirectory() {
             department: 'IT Administration',
             status: 'active' as UserStatus,
             joinDate: '2023-01-01',
-            level: 99,
-            xp: 100
+            relatedCourses: []
         }
     ];
 
@@ -177,39 +185,39 @@ export function UserDirectory() {
                         <UserIcon className="w-24 h-24 text-orange-500 rotate-12" />
                     </div>
                     <CardHeader className="pb-2">
-                        <CardDescription className="text-orange-200/60 font-medium tracking-wide uppercase text-xs">Total Operations</CardDescription>
+                        <CardDescription className="text-orange-200/60 font-medium tracking-wide uppercase text-xs">Total Users</CardDescription>
                         <CardTitle className="text-4xl font-black text-orange-100">{allUsers.length}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="flex items-center gap-2 text-xs font-semibold text-orange-300">
                             <Sparkles className="w-3 h-3" />
-                            <span>Active System Users</span>
+                            <span>Across all roles</span>
                         </div>
                     </CardContent>
                 </Card>
                 <Card className="bg-neutral-900/60 backdrop-blur-xl border border-white/5 hover:border-cyan-500/30 transition-all duration-300 group">
                     <CardHeader className="pb-2">
-                        <CardDescription className="text-neutral-500 font-medium tracking-wide uppercase text-xs">Online Players</CardDescription>
+                        <CardDescription className="text-neutral-500 font-medium tracking-wide uppercase text-xs">Total Students</CardDescription>
                         <CardTitle className="text-4xl font-black text-cyan-100 group-hover:text-cyan-400 transition-colors">
-                            {Math.floor(allUsers.length * 0.8)}
+                            {students.length}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="flex items-center gap-2 text-xs text-neutral-400">
-                            <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
-                            <span>Currently Active</span>
+                            <UserIcon className="w-3 h-3 text-cyan-400" />
+                            <span>Active Students</span>
                         </div>
                     </CardContent>
                 </Card>
                 <Card className="bg-neutral-900/60 backdrop-blur-xl border border-white/5 hover:border-purple-500/30 transition-all duration-300 group">
                     <CardHeader className="pb-2">
-                        <CardDescription className="text-neutral-500 font-medium tracking-wide uppercase text-xs">New Recruits</CardDescription>
-                        <CardTitle className="text-4xl font-black text-purple-100 group-hover:text-purple-400 transition-colors">3</CardTitle>
+                        <CardDescription className="text-neutral-500 font-medium tracking-wide uppercase text-xs">Total Teachers</CardDescription>
+                        <CardTitle className="text-4xl font-black text-purple-100 group-hover:text-purple-400 transition-colors">{teachers.length}</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-xs text-neutral-400 flex items-center gap-2">
-                            <ShieldAlert className="w-3 h-3 text-purple-400" />
-                            Pending Authorization
+                            <ShieldCheck className="w-3 h-3 text-purple-400" />
+                            <span>Active Teachers</span>
                         </div>
                     </CardContent>
                 </Card>
@@ -272,85 +280,116 @@ export function UserDirectory() {
                     </div>
                 ) : (
                     filteredUsers.map((user) => (
-                        <Card key={user.id} className="group bg-neutral-900/40 backdrop-blur-sm border border-white/5 hover:bg-neutral-800/60 hover:border-white/10 hover:shadow-2xl hover:shadow-black/50 transition-all duration-300 rounded-2xl overflow-hidden relative flex flex-col">
-                            {/* Decorative Top Border based on Role */}
-                            <div className={`h-1 w-full absolute top-0 left-0 ${user.role === 'admin' ? 'bg-orange-500' :
-                                user.role === 'teacher' ? 'bg-purple-500' :
-                                    'bg-cyan-500'
-                                }`} />
-
-                            <div className="absolute top-4 right-4">
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-neutral-500 hover:text-white hover:bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all">
-                                            <MoreHorizontal className="h-4 w-4" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-48 bg-neutral-950 border-neutral-800 text-neutral-300">
-                                        <DropdownMenuLabel>User Actions</DropdownMenuLabel>
-                                        <DropdownMenuSeparator className="bg-neutral-800" />
-                                        <DropdownMenuItem onClick={() => handleViewProfile(user)} className="focus:bg-neutral-800 focus:text-white cursor-pointer">
-                                            <UserIcon className="mr-2 h-4 w-4" /> View Stats
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleSuspendUser(user)} className="focus:bg-neutral-800 focus:text-white cursor-pointer">
-                                            <ShieldAlert className="mr-2 h-4 w-4 text-orange-400" /> Suspend
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem className="text-red-400 focus:text-red-300 focus:bg-red-950/20 cursor-pointer" onClick={() => handleDeleteUser(user)}>
-                                            <X className="mr-2 h-4 w-4" /> Delete
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </div>
-
-                            <CardContent className="pt-8 pb-4 flex-1 flex flex-col items-center text-center space-y-4">
-                                <div className="relative">
-                                    <div className={`absolute -inset-1 rounded-full blur opacity-0 group-hover:opacity-50 transition duration-500 ${user.role === 'admin' ? 'bg-orange-500' :
+                        <HoverCard key={user.id} openDelay={200} closeDelay={100}>
+                            <HoverCardTrigger asChild>
+                                <Card className="group bg-neutral-900/40 backdrop-blur-sm border border-white/5 hover:bg-neutral-800/60 hover:border-white/10 hover:shadow-2xl hover:shadow-black/50 transition-all duration-300 rounded-2xl overflow-hidden relative flex flex-col cursor-pointer" onClick={() => handleViewProfile(user)}>
+                                    {/* Decorative Top Border based on Role */}
+                                    <div className={`h-1 w-full absolute top-0 left-0 ${user.role === 'admin' ? 'bg-orange-500' :
                                         user.role === 'teacher' ? 'bg-purple-500' :
                                             'bg-cyan-500'
-                                        }`}></div>
-                                    <Avatar className="h-20 w-20 border-2 border-neutral-800 relative shadow-xl">
-                                        <AvatarImage src={user.avatarUrl} />
-                                        <AvatarFallback className={`text-lg font-bold ${user.role === 'admin' ? 'bg-orange-500 text-white' :
-                                            user.role === 'teacher' ? 'bg-purple-900 text-purple-200' :
-                                                'bg-cyan-950 text-cyan-300'
-                                            }`}>
-                                            {getInitials(user.name)}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                    <div className="absolute -bottom-2 -right-2 bg-neutral-900 rounded-full p-1 border border-neutral-800">
-                                        <div className={`p-1 rounded-full ${user.role === 'admin' ? 'bg-orange-500/20' :
-                                            user.role === 'teacher' ? 'bg-purple-500/20' :
-                                                'bg-cyan-500/20'
-                                            }`}>
-                                            {getRoleIcon(user.role)}
+                                        }`} />
+
+                                    <div className="absolute top-4 right-4 z-10" onClick={(e) => e.stopPropagation()}>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-neutral-500 hover:text-white hover:bg-white/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all">
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" className="w-48 bg-neutral-950 border-neutral-800 text-neutral-300">
+                                                <DropdownMenuLabel>User Actions</DropdownMenuLabel>
+                                                <DropdownMenuSeparator className="bg-neutral-800" />
+                                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewProfile(user); }} className="focus:bg-neutral-800 focus:text-white cursor-pointer">
+                                                    <UserIcon className="mr-2 h-4 w-4" /> View Details
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem className="text-red-400 focus:text-red-300 focus:bg-red-950/20 cursor-pointer" onClick={(e) => { e.stopPropagation(); handleDeleteUser(user); }}>
+                                                    <X className="mr-2 h-4 w-4" /> Delete
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
+
+                                    <CardContent className="pt-8 pb-4 flex-1 flex flex-col items-center text-center space-y-4">
+                                        <div className="relative">
+                                            <div className={`absolute -inset-1 rounded-full blur opacity-0 group-hover:opacity-50 transition duration-500 ${user.role === 'admin' ? 'bg-orange-500' :
+                                                user.role === 'teacher' ? 'bg-purple-500' :
+                                                    'bg-cyan-500'
+                                                }`}></div>
+                                            <Avatar className="h-20 w-20 border-2 border-neutral-800 relative shadow-xl">
+                                                <AvatarImage src={user.avatarUrl} />
+                                                <AvatarFallback className={`text-lg font-bold ${user.role === 'admin' ? 'bg-orange-500 text-white' :
+                                                    user.role === 'teacher' ? 'bg-purple-900 text-purple-200' :
+                                                        'bg-cyan-950 text-cyan-300'
+                                                    }`}>
+                                                    {getInitials(user.name)}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <div className="absolute -bottom-2 -right-2 bg-neutral-900 rounded-full p-1 border border-neutral-800">
+                                                <div className={`p-1 rounded-full ${user.role === 'admin' ? 'bg-orange-500/20' :
+                                                    user.role === 'teacher' ? 'bg-purple-500/20' :
+                                                        'bg-cyan-500/20'
+                                                    }`}>
+                                                    {getRoleIcon(user.role)}
+                                                </div>
+                                            </div>
                                         </div>
+
+                                        <div>
+                                            <h3 className="font-bold text-white text-lg tracking-tight group-hover:text-cyan-400 transition-colors">{user.name}</h3>
+                                            <p className="text-xs text-neutral-500 mt-1 font-mono">{user.email}</p>
+                                        </div>
+
+                                        <Badge variant="outline" className={`px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${getRoleBadgeColor(user.role)}`}>
+                                            {user.role}
+                                        </Badge>
+                                    </CardContent>
+
+                                    <CardFooter className="bg-neutral-900/30 border-t border-white/5 p-4 w-full mt-auto">
+                                        <div className="w-full space-y-2">
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="text-neutral-500 font-medium">Courses</span>
+                                                <span className="text-cyan-400 font-mono">{user.relatedCourses?.length || 0} enrolled</span>
+                                            </div>
+                                        </div>
+                                    </CardFooter>
+                                </Card>
+                            </HoverCardTrigger>
+                            <HoverCardContent 
+                                side="bottom" 
+                                align="center" 
+                                className="w-64 bg-neutral-950/95 backdrop-blur-xl border-neutral-800 p-4 space-y-3 z-50 shadow-2xl"
+                            >
+                                <div className="space-y-1">
+                                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                                        <BookOpen className="w-4 h-4 text-cyan-400" />
+                                        {user.role === 'teacher' ? 'Assigned Courses' : 'Enrolled Courses'}
+                                    </h4>
+                                    <p className="text-xs text-neutral-500">
+                                        {user.relatedCourses?.length} courses total
+                                    </p>
+                                </div>
+                                
+                                {user.relatedCourses && user.relatedCourses.length > 0 ? (
+                                    <ScrollArea className="h-40 rounded-md">
+                                        <div className="space-y-2 pr-4">
+                                            {user.relatedCourses.map(course => (
+                                                <div key={course.id} className="text-xs p-2 rounded bg-neutral-900 border border-white/5 space-y-1">
+                                                    <div className="font-medium text-neutral-200">{course.name}</div>
+                                                    <div className="text-neutral-500 flex justify-between">
+                                                        <span>{course.code}</span>
+                                                        <span>Sem {course.semester}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </ScrollArea>
+                                ) : (
+                                    <div className="text-xs text-neutral-500 text-center py-4 bg-neutral-900/50 rounded-lg border border-dashed border-white/5">
+                                        No courses attached.
                                     </div>
-                                </div>
-
-                                <div>
-                                    <h3 className="font-bold text-white text-lg tracking-tight group-hover:text-cyan-400 transition-colors">{user.name}</h3>
-                                    <p className="text-xs text-neutral-500 mt-1 font-mono">{user.email}</p>
-                                </div>
-
-                                <Badge variant="outline" className={`px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider ${getRoleBadgeColor(user.role)}`}>
-                                    {user.role}
-                                </Badge>
-                            </CardContent>
-
-                            <CardFooter className="bg-neutral-900/30 border-t border-white/5 p-4 w-full mt-auto">
-                                <div className="w-full space-y-2">
-                                    <div className="flex justify-between items-center text-xs">
-                                        <span className="text-neutral-500 font-medium">Level {user.level || 1}</span>
-                                        <span className="text-cyan-400 font-mono">{user.xp || 0}% XP</span>
-                                    </div>
-                                    <Progress value={user.xp || 0} className="h-1.5 bg-neutral-800" indicatorClassName={
-                                        user.role === 'admin' ? 'bg-orange-500' :
-                                            user.role === 'teacher' ? 'bg-purple-500' :
-                                                'bg-cyan-500'
-                                    } />
-                                </div>
-                            </CardFooter>
-                        </Card>
+                                )}
+                            </HoverCardContent>
+                        </HoverCard>
                     ))
                 )}
             </div>
@@ -360,11 +399,11 @@ export function UserDirectory() {
                 <DialogContent className="sm:max-w-md bg-neutral-950 border-neutral-800 text-neutral-200">
                     <DialogHeader>
                         <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
-                            <Trophy className="w-5 h-5 text-yellow-500" />
-                            Player Profile
+                            <UserIcon className="w-5 h-5 text-cyan-400" />
+                            User Details
                         </DialogTitle>
                         <DialogDescription className="text-neutral-500">
-                            Detailed stats for {selectedUser?.name}
+                            Comprehensive dashboard and course details for {selectedUser?.name}
                         </DialogDescription>
                     </DialogHeader>
                     {selectedUser && (
@@ -376,13 +415,17 @@ export function UserDirectory() {
                                         <AvatarFallback className="text-3xl bg-neutral-800 text-white font-bold"> {getInitials(selectedUser.name)}</AvatarFallback>
                                     </Avatar>
                                 </div>
-                                <div className="space-y-1.5">
-                                    <h4 className="text-2xl font-bold text-white">{selectedUser.name}</h4>
-                                    <div className="flex items-center gap-2">
+                                <div className="space-y-1.5 flex-1 w-full min-w-0">
+                                    <h4 className="text-2xl font-bold text-white truncate">{selectedUser.name}</h4>
+                                    <div className="flex flex-wrap items-center gap-2">
                                         <Badge className={`${getRoleBadgeColor(selectedUser.role)} pointer-events-none`}>{selectedUser.role.toUpperCase()}</Badge>
-                                        <span className="text-xs text-neutral-500 font-mono bg-neutral-900 px-2 py-0.5 rounded border border-neutral-800">
+                                        <span className="text-xs text-neutral-500 font-mono bg-neutral-900 px-2 py-0.5 rounded border border-neutral-800 whitespace-nowrap">
                                             ID: {selectedUser.originalId}
                                         </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-sm text-neutral-400 mt-1">
+                                        <Mail className="h-3.5 w-3.5" />
+                                        <span className="truncate">{selectedUser.email}</span>
                                     </div>
                                 </div>
                             </div>
@@ -396,29 +439,47 @@ export function UserDirectory() {
                                     <label className="text-xs text-neutral-500 uppercase font-bold tracking-wider">Status</label>
                                     <div className="flex items-center gap-2">
                                         <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
-                                        <p className="text-sm font-medium text-green-400">Online</p>
+                                        <p className="text-sm font-medium text-green-400">Active</p>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="space-y-3 bg-neutral-900/30 p-4 rounded-xl border border-white/5">
-                                <div className="flex justify-between items-end">
+                            {/* Related Courses Section */}
+                            <div className="space-y-3 bg-neutral-900/30 p-4 rounded-xl border border-white/5 flex flex-col max-h-[220px]">
+                                <div className="flex justify-between items-center pb-2 border-b border-white/5 shrink-0">
                                     <div className="flex items-center gap-2 text-sm font-semibold text-neutral-300">
-                                        <Zap className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                                        Current Level
+                                        <BookOpen className="w-4 h-4 text-cyan-400" />
+                                        {selectedUser.role === 'teacher' ? 'Assigned Courses' : 'Enrolled Courses'}
                                     </div>
-                                    <span className="text-2xl font-black text-white">{selectedUser.level || 1}</span>
+                                    <Badge variant="outline" className="bg-neutral-950 border-neutral-800 text-neutral-400">
+                                        {selectedUser.relatedCourses?.length || 0}
+                                    </Badge>
                                 </div>
-                                <Progress value={selectedUser.xp || 45} className="h-2 bg-neutral-800" />
-                                <div className="flex justify-between text-xs text-neutral-500 font-mono">
-                                    <span>Rank: Novice</span>
-                                    <span>{(selectedUser.xp || 45)} / 100 XP</span>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-3 text-sm text-neutral-400 bg-neutral-900/50 p-3 rounded-lg">
-                                <Mail className="h-4 w-4 text-neutral-500" />
-                                <span>{selectedUser.email}</span>
+                                
+                                <ScrollArea className="flex-1 pr-4">
+                                    {selectedUser.relatedCourses && selectedUser.relatedCourses.length > 0 ? (
+                                        <div className="space-y-2 pt-2 pb-2">
+                                            {selectedUser.relatedCourses.map((course: any) => (
+                                                <div key={course.id} className="flex flex-col p-3 rounded-lg bg-neutral-950/50 border border-neutral-800/60 hover:border-cyan-500/30 transition-colors">
+                                                    <div className="flex items-start justify-between">
+                                                        <span className="text-sm font-medium text-neutral-200 line-clamp-1">{course.name}</span>
+                                                        <span className="text-xs font-mono text-cyan-400/80 bg-cyan-950/30 px-2 py-0.5 rounded">{course.code}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-4 mt-2 text-xs text-neutral-500">
+                                                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Year {course.year}</span>
+                                                        <span>Sem {course.semester}</span>
+                                                        {course.section && <span>Sec {course.section}</span>}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center py-6 text-neutral-500">
+                                            <BookOpen className="w-8 h-8 opacity-20 mb-2" />
+                                            <p className="text-xs">No courses available for this user.</p>
+                                        </div>
+                                    )}
+                                </ScrollArea>
                             </div>
                         </div>
                     )}

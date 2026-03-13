@@ -76,13 +76,15 @@ router.post('/create-user', authenticateToken, authorizeRole(['admin']), async (
 router.get('/users', authenticateToken, authorizeRole(['admin']), async (req, res) => {
     try {
         const students = await pool.query(`
-            SELECT u.id, u.register_number, s.name, s.email, d.name as department, 'student' as role 
+            SELECT u.id, u.register_number, s.name, s.email, d.name as department, 'student' as role,
+            (SELECT COALESCE(json_agg(ce.course_id), '[]'::json) FROM course_enrollments ce WHERE ce.student_id = s.id) as enrolled_courses
             FROM users u 
             JOIN students s ON u.id = s.user_id 
             LEFT JOIN departments d ON s.department_id = d.id
         `);
         const teachers = await pool.query(`
-            SELECT u.id, u.register_number, t.name, t.email, d.name as department, 'teacher' as role 
+            SELECT u.id, u.register_number, t.name, t.email, d.name as department, 'teacher' as role,
+            (SELECT COALESCE(json_agg(c.id), '[]'::json) FROM courses c WHERE c.teacher_id = t.id) as assigned_courses
             FROM users u 
             JOIN teachers t ON u.id = t.user_id
             LEFT JOIN departments d ON t.department_id = d.id
