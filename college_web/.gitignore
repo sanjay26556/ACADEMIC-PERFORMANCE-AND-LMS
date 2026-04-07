@@ -1,0 +1,11 @@
+# Logs
+*.log
+
+# Debug & temp files
+debug_*
+check_*
+test_*
+*.txt
+*.json
+*.ps1
+*.timestamp-*
