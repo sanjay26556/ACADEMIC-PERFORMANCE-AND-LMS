@@ -270,7 +270,7 @@ export default function MarksManagement() {
         doc.text(`Semester: ${course?.semester} | Section: ${course?.section} | Year: ${course?.year}`, 105, 33, { align: "center" });
 
         // Table
-        const tableColumn = ["Register No", "Name", "UT1", "UT2", "UT3", "Model", "Assign"];
+        const tableColumn = ["Register No", "Name", "UT1", "UT2", "UT3", "Model", "Assign", "Overall (40)"];
         const tableRows = [];
 
         if (Array.isArray(students)) students.forEach(student => {
@@ -282,7 +282,8 @@ export default function MarksManagement() {
                 marks['UT2'] || '-',
                 marks['UT3'] || '-',
                 marks['Model Exam 1'] || '-',
-                marks['Assignment'] || '-'
+                marks['Assignment'] || '-',
+                calculateOverall(marks)
             ];
             tableRows.push(row);
         });
@@ -297,6 +298,17 @@ export default function MarksManagement() {
         });
 
         doc.save(`Marks_${course?.code}_Report.pdf`);
+    };
+
+    const calculateOverall = (marks: any) => {
+        const ut1 = parseFloat(marks['UT1']) || 0;
+        const ut2 = parseFloat(marks['UT2']) || 0;
+        const ut3 = parseFloat(marks['UT3']) || 0;
+        const model = parseFloat(marks['Model Exam 1']) || 0;
+        const assignment = parseFloat(marks['Assignment']) || 0;
+        
+        const calculated = (ut1 / 10) + (ut2 / 10) + (ut3 / 10) + (model / 20) + (assignment / 2);
+        return isNaN(calculated) ? 0 : Math.round(calculated * 10) / 10;
     };
 
     return (
@@ -411,12 +423,13 @@ export default function MarksManagement() {
                                             <TableHead className="text-center text-neutral-400">UT3</TableHead>
                                             <TableHead className="text-center text-neutral-400">Model 1</TableHead>
                                             <TableHead className="text-center text-neutral-400">Assignment</TableHead>
+                                            <TableHead className="text-center text-emerald-400 font-bold">Overall (40)</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {!Array.isArray(students) || students.length === 0 ? (
                                             <TableRow>
-                                                <TableCell colSpan={7} className="text-center py-12 text-neutral-500">
+                                                <TableCell colSpan={8} className="text-center py-12 text-neutral-500">
                                                     No students enrolled in this course yet.
                                                 </TableCell>
                                             </TableRow>
@@ -440,6 +453,9 @@ export default function MarksManagement() {
                                                             />
                                                         </TableCell>
                                                     ))}
+                                                    <TableCell className="p-1 text-center font-bold text-emerald-400">
+                                                        {calculateOverall(student.marks)}
+                                                    </TableCell>
                                                 </TableRow>
                                             ))
                                         )}

@@ -41,14 +41,12 @@ router.get('/', authorizeRole(['teacher', 'student']), getTeacherId, async (req,
             query += ` AND asg.teacher_id = $${paramUsage++}`;
             params.push(req.teacher.id);
         } else if (req.user.role === 'student') {
-            // Students only see assessments they are enrolled in the course for, or global ones
             query += ` 
                 AND (asg.course_id IS NULL OR asg.course_id IN (SELECT course_id FROM course_enrollments WHERE student_id = (SELECT id FROM students WHERE user_id = $${paramUsage++})))
             `;
             params.push(req.user.id);
         }
 
-        // Apply Filters
         if (assignment_id) {
             query += ` AND a.assignment_id = $${paramUsage++}`;
             params.push(assignment_id);
@@ -61,12 +59,35 @@ router.get('/', authorizeRole(['teacher', 'student']), getTeacherId, async (req,
         query += ` ORDER BY a.created_at DESC`;
 
         const result = await pool.query(query, params);
-        res.json(result.rows);
+        let rows = result.rows;
+
+        // For students: attach submission_status
+        if (req.user.role === 'student' && rows.length > 0) {
+            const studentRes = await pool.query('SELECT id FROM students WHERE user_id = $1', [req.user.id]);
+            if (studentRes.rows.length > 0) {
+                const studentId = studentRes.rows[0].id;
+                const assessmentIds = rows.map(r => r.id);
+                const subRes = await pool.query(
+                    `SELECT assessment_id, status FROM submissions WHERE student_id = $1 AND assessment_id = ANY($2)`,
+                    [studentId, assessmentIds]
+                );
+                const submissionMap = {};
+                subRes.rows.forEach(s => { submissionMap[s.assessment_id] = s.status; });
+                rows = rows.map(r => ({
+                    ...r,
+                    submission_status: submissionMap[r.id] || null
+                }));
+            }
+        }
+
+        res.json(rows);
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Server error fetching assessments' });
     }
 });
+
+
 
 // -------------------------------------------------------------------------
 // CREATE ASSESSMENT
@@ -197,6 +218,183 @@ router.get('/:id', authorizeRole(['teacher', 'student']), async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: 'Server error fetching assessment details' });
+    }
+});
+
+// -------------------------------------------------------------------------
+// SUBMIT ASSESSMENT (Student)
+// -------------------------------------------------------------------------
+router.post('/:id/submit', authorizeRole(['student']), async (req, res) => {
+    const { id } = req.params;
+    const { answers, session_id, termination_reason, violation_summary } = req.body;
+    try {
+        const studentRes = await pool.query(
+            'SELECT s.id, s.name, u.register_number FROM students s JOIN users u ON s.user_id = u.id WHERE s.user_id = $1',
+            [req.user.id]
+        );
+        if (studentRes.rows.length === 0) return res.status(403).json({ message: 'Student not found' });
+        const student = studentRes.rows[0];
+
+        // Upsert submission
+        await pool.query(`
+            INSERT INTO submissions (assessment_id, student_id, submission_data, status, submitted_at)
+            VALUES ($1, $2, $3, $4, NOW())
+            ON CONFLICT (assessment_id, student_id) DO UPDATE
+            SET submission_data = EXCLUDED.submission_data, status = EXCLUDED.status, submitted_at = EXCLUDED.submitted_at
+        `, [id, student.id, JSON.stringify(answers || {}), termination_reason ? 'Terminated' : 'Submitted']);
+
+        // Close session
+        if (session_id) {
+            await pool.query(`
+                UPDATE exam_sessions SET ended_at = NOW(), status = $1, termination_reason = $2 WHERE id = $3
+            `, [termination_reason ? 'terminated' : 'submitted', termination_reason || null, session_id]);
+        }
+
+        // ---- TEACHER NOTIFICATION on Termination ----
+        if (termination_reason) {
+            // Get violation log summary from DB
+            const violationsRes = await pool.query(`
+                SELECT violation_type, severity, description, timestamp
+                FROM proctoring_violations
+                WHERE student_id = $1 AND assessment_id = $2
+                ORDER BY timestamp ASC
+            `, [student.id, id]);
+
+            const violations = violationsRes.rows;
+
+            // Get teacher user_id via assessment → assignment → teacher
+            const assessRes = await pool.query(`
+                SELECT a.title as assessment_title, asg.title as assignment_title,
+                       c.name as course_name, c.code as course_code,
+                       t.user_id as teacher_user_id, t.name as teacher_name
+                FROM assessments a
+                JOIN assignments asg ON a.assignment_id = asg.id
+                LEFT JOIN courses c ON asg.course_id = c.id
+                LEFT JOIN teachers t ON asg.teacher_id = t.id
+                WHERE a.id = $1
+            `, [id]);
+
+            if (assessRes.rows.length > 0) {
+                const assess = assessRes.rows[0];
+                const now = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+
+                // Format violation table text
+                const violationLines = violations.map((v, i) =>
+                    `  ${i + 1}. [${v.severity?.toUpperCase()}] ${v.violation_type.replace(/_/g, ' ')} — ${v.description} (${new Date(v.timestamp).toLocaleTimeString('en-IN')})`
+                ).join('\n');
+
+                const notifTitle = `🚨 Exam Terminated: ${student.name} (${student.register_number})`;
+                const notifMessage =
+                    `Student ${student.name} (Reg: ${student.register_number}) has been TERMINATED from the assessment "${assess.assessment_title}" due to malpractice.\n\n` +
+                    `📋 Assessment: ${assess.assessment_title}\n` +
+                    `📚 Course: ${assess.course_name || 'N/A'} (${assess.course_code || 'N/A'})\n` +
+                    `⏰ Terminated At: ${now}\n\n` +
+                    `⚠️ Violation Log (${violations.length} violations recorded):\n` +
+                    (violationLines || '  No detailed logs.') +
+                    `\n\n📌 Reason: ${termination_reason}\n\n` +
+                    `[student_id:${student.id},assessment_id:${id}]`;
+
+                await pool.query(`
+                    INSERT INTO notifications (user_id, title, message, is_read, created_at)
+                    VALUES ($1, $2, $3, FALSE, NOW())
+                `, [assess.teacher_user_id, notifTitle, notifMessage]);
+
+            }
+        }
+
+        res.json({ message: 'Assessment submitted successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error submitting assessment' });
+    }
+});
+
+
+// -------------------------------------------------------------------------
+// START EXAM SESSION (Student)
+// -------------------------------------------------------------------------
+router.post('/:id/session/start', authorizeRole(['student']), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const studentRes = await pool.query('SELECT id FROM students WHERE user_id = $1', [req.user.id]);
+        if (studentRes.rows.length === 0) return res.status(403).json({ message: 'Student not found' });
+        const studentId = studentRes.rows[0].id;
+
+        // Check if already submitted or terminated
+        const existing = await pool.query('SELECT id, status FROM submissions WHERE assessment_id = $1 AND student_id = $2', [id, studentId]);
+        if (existing.rows.length > 0) {
+            if (existing.rows[0].status === 'Terminated') {
+                return res.status(403).json({ message: 'Exam terminated due to malpractice. Please wait until staff allows for a retest.' });
+            }
+            return res.status(409).json({ message: 'You have already submitted this assessment.' });
+        }
+
+        const session = await pool.query(`
+            INSERT INTO exam_sessions (student_id, assessment_id, started_at, status)
+            VALUES ($1, $2, NOW(), 'active') RETURNING id
+        `, [studentId, id]);
+
+        res.json({ session_id: session.rows[0].id });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error starting session' });
+    }
+});
+
+// -------------------------------------------------------------------------
+// LOG PROCTORING VIOLATION (Student)
+// -------------------------------------------------------------------------
+router.post('/:id/violation', authorizeRole(['student']), async (req, res) => {
+    const { id } = req.params;
+    const { violation_type, severity, description, session_id } = req.body;
+    try {
+        const studentRes = await pool.query('SELECT id, name FROM students WHERE user_id = $1', [req.user.id]);
+        if (studentRes.rows.length === 0) return res.status(403).json({ message: 'Student not found' });
+        const student = studentRes.rows[0];
+
+        // Insert violation log
+        await pool.query(`
+            INSERT INTO proctoring_violations (student_id, assessment_id, violation_type, severity, description, timestamp)
+            VALUES ($1, $2, $3, $4, $5, NOW())
+        `, [student.id, id, violation_type, severity || 'medium', description || '']);
+
+        // Increment session violation count
+        let newCount = 1;
+        if (session_id) {
+            const sess = await pool.query(
+                'UPDATE exam_sessions SET violation_count = violation_count + 1 WHERE id = $1 RETURNING violation_count',
+                [session_id]
+            );
+            if (sess.rows.length > 0) newCount = sess.rows[0].violation_count;
+        }
+
+        // Notify teacher if critical
+        if (severity === 'critical' || violation_type === 'multiple_faces') {
+            const assessRes = await pool.query(`
+                SELECT a.title, asg.teacher_id, t.user_id as teacher_user_id
+                FROM assessments a
+                JOIN assignments asg ON a.assignment_id = asg.id
+                JOIN teachers t ON asg.teacher_id = t.id
+                WHERE a.id = $1
+            `, [id]);
+
+            if (assessRes.rows.length > 0) {
+                const assess = assessRes.rows[0];
+                await pool.query(`
+                    INSERT INTO notifications (user_id, title, message, is_read, created_at)
+                    VALUES ($1, $2, $3, FALSE, NOW())
+                `, [
+                    assess.teacher_user_id,
+                    `⚠️ Malpractice Alert: ${student.name}`,
+                    `Student ${student.name} triggered a ${violation_type.replace(/_/g, ' ')} violation during "${assess.title}" assessment. Severity: ${severity}. Review required.`
+                ]);
+            }
+        }
+
+        res.json({ message: 'Violation logged', violation_count: newCount });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error logging violation' });
     }
 });
 

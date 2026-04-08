@@ -21,6 +21,11 @@ export default function MarksView() {
     // Process marks to group by subject
     const [processedMarks, setProcessedMarks] = useState([]);
 
+    const getOverall = (marks: any) => {
+        const sum = (parseFloat(marks['UT1'])||0)/10 + (parseFloat(marks['UT2'])||0)/10 + (parseFloat(marks['UT3'])||0)/10 + (parseFloat(marks['Model Exam 1'])||0)/20 + (parseFloat(marks['Assignment'])||0)/2;
+        return Math.round(sum * 10) / 10;
+    };
+
     useEffect(() => {
         setLoading(true);
         fetch(`${API_URL}/student/marks?semester=${semester}`, { headers: getAuthHeaders() })
@@ -54,15 +59,16 @@ export default function MarksView() {
         const doc = new jsPDF();
         doc.text(`Marks Statement - Semester ${semester}`, 14, 15);
 
-        const tableColumn = ["Subject Code", "Subject Name", "UT1", "UT2", "UT3", "Model", "Assign"];
-        const tableRows = processedMarks.map(sub => [
+        const tableColumn = ["Subject Code", "Subject Name", "UT1", "UT2", "UT3", "Model", "Assign", "Overall (40)"];
+        const tableRows = processedMarks.map((sub: any) => [
             sub.code,
             sub.name,
             sub.marks['UT1'] || '-',
             sub.marks['UT2'] || '-',
             sub.marks['UT3'] || '-',
             sub.marks['Model Exam 1'] || '-',
-            sub.marks['Assignment'] || '-'
+            sub.marks['Assignment'] || '-',
+            getOverall(sub.marks)
         ]);
 
         autoTable(doc, {
@@ -75,14 +81,15 @@ export default function MarksView() {
     };
 
     const downloadExcel = () => {
-        const data = processedMarks.map(sub => ({
+        const data = processedMarks.map((sub: any) => ({
             "Subject Code": sub.code,
             "Subject Name": sub.name,
             "UT1": sub.marks['UT1'] || '-',
             "UT2": sub.marks['UT2'] || '-',
             "UT3": sub.marks['UT3'] || '-',
             "Model Exam 1": sub.marks['Model Exam 1'] || '-',
-            "Assignment": sub.marks['Assignment'] || '-'
+            "Assignment": sub.marks['Assignment'] || '-',
+            "Overall (40)": getOverall(sub.marks)
         }));
 
         const ws = XLSX.utils.json_to_sheet(data);
@@ -138,12 +145,13 @@ export default function MarksView() {
                                     <TableHead className="text-center">UT3</TableHead>
                                     <TableHead className="text-center">Model</TableHead>
                                     <TableHead className="text-center">Assign</TableHead>
+                                    <TableHead className="text-center text-primary font-bold">Overall (40)</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {processedMarks.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                                             No marks data found for this semester.
                                         </TableCell>
                                     </TableRow>
@@ -157,6 +165,7 @@ export default function MarksView() {
                                             <TableCell className="text-center">{sub.marks['UT3'] || '-'}</TableCell>
                                             <TableCell className="text-center">{sub.marks['Model Exam 1'] || '-'}</TableCell>
                                             <TableCell className="text-center">{sub.marks['Assignment'] || '-'}</TableCell>
+                                            <TableCell className="text-center font-bold text-primary">{getOverall(sub.marks)}</TableCell>
                                         </TableRow>
                                     ))
                                 )}

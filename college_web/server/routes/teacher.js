@@ -430,6 +430,13 @@ router.get('/marks/export', async (req, res) => {
                 const mark = marks.find(m => m.student_id === s.id && m.exam_type === type);
                 row[type] = mark ? mark.marks_obtained : '';
             });
+            const ut1 = parseFloat(row['UT1']) || 0;
+            const ut2 = parseFloat(row['UT2']) || 0;
+            const ut3 = parseFloat(row['UT3']) || 0;
+            const model = parseFloat(row['Model Exam 1']) || 0;
+            const assignment = parseFloat(row['Assignment']) || 0;
+            const overall = (ut1 / 10) + (ut2 / 10) + (ut3 / 10) + (model / 20) + (assignment / 2);
+            row['Overall Internal (40)'] = isNaN(overall) ? 0 : Math.round(overall * 10) / 10;
             return row;
         });
 

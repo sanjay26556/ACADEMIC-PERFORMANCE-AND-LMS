@@ -10,23 +10,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-    AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-    AlertDialogTrigger
+    AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from "@/components/ui/alert-dialog";
+
 import { toast } from "sonner";
-import { Users, BookOpen, Calendar, TrendingUp, Clock, Plus, Save, Search, CheckCircle, XCircle, Trash2, AlertTriangle, Mail } from "lucide-react";
+import { Users, BookOpen, Plus, Save, Trash2, AlertTriangle, Mail } from "lucide-react";
 import MarksManagement from "./MarksManagement";
 import AssignmentsView from "./components/AssignmentsView";
 import AssessmentsManager from "./components/AssessmentsManager";
 import DashboardAnalytics from "./components/DashboardAnalytics";
 
-// API Helper
 const API_URL = 'http://localhost:5000';
 const getAuthHeaders = () => ({
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${localStorage.getItem('token')}`
 });
-
 
 export const fetchWithAuth = async (url: string, options: any = {}) => {
     const res = await fetch(url, options);
@@ -39,6 +37,9 @@ export const fetchWithAuth = async (url: string, options: any = {}) => {
     return res;
 };
 
+// ============================================================
+// MAIN TEACHER DASHBOARD
+// ============================================================
 export default function TeacherDashboard() {
     const [searchParams] = useSearchParams();
     const activeTab = searchParams.get("tab") || "overview";
@@ -62,37 +63,162 @@ export default function TeacherDashboard() {
     );
 }
 
+// ============================================================
+// NOTIFICATIONS VIEW
+// ============================================================
 function NotificationsView() {
-    const [notifications, setNotifications] = useState([]);
+    const [notifications, setNotifications] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [retesting, setRetesting] = useState<number | null>(null);
+
+    const fetchNotifications = async () => {
+        setLoading(true);
+        try {
+            const res = await fetchWithAuth(`${API_URL}/notifications`, { headers: getAuthHeaders() });
+            if (res.ok) {
+                const data = await res.json();
+                setNotifications(Array.isArray(data) ? data : []);
+            }
+        } catch {
+            toast.error('Failed to load notifications');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => { fetchNotifications(); }, []);
+
+    const handleMarkRead = async (id: number) => {
+        try {
+            await fetchWithAuth(`${API_URL}/notifications/${id}/read`, { method: 'PUT', headers: getAuthHeaders() });
+            setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+        } catch {}
+    };
+
+    const handleMarkAllRead = async () => {
+        try {
+            await fetchWithAuth(`${API_URL}/notifications/mark-all-read`, { method: 'PUT', headers: getAuthHeaders() });
+            setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+            toast.success('All notifications marked as read');
+        } catch {}
+    };
+
+    const handleAllowRetest = async (notification: any) => {
+        const match = notification.message?.match(/\[student_id:(\d+),assessment_id:(\d+)\]/);
+        if (!match) { toast.error('Retest info not found in notification.'); return; }
+        const student_id = parseInt(match[1]);
+        const assessment_id = parseInt(match[2]);
+        setRetesting(notification.id);
+        try {
+            const res = await fetchWithAuth(`${API_URL}/notifications/retest`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ student_id, assessment_id, notification_id: notification.id })
+            });
+            if (res.ok) {
+                toast.success('Retest granted! Student has been notified.');
+                fetchNotifications();
+            } else {
+                const d = await res.json();
+                toast.error(d.message || 'Failed to grant retest');
+            }
+        } catch {
+            toast.error('Server error');
+        } finally {
+            setRetesting(null);
+        }
+    };
+
+    const unreadCount = notifications.filter(n => !n.is_read).length;
+    const isMal = (n: any) => n.title?.includes('Terminated') || n.title?.includes('Alert') || n.title?.includes('Malpractice');
+    const hasRetestTag = (n: any) => /\[student_id:\d+,assessment_id:\d+\]/.test(n.message || '');
+    const fmtTime = (ts: string) => {
+        try { return new Date(ts).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); }
+        catch { return ts; }
+    };
 
     return (
         <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-white">Notifications</h2>
-            <div className="grid gap-4">
-                {notifications.length === 0 ? (
-                    <div className="text-center py-12 text-neutral-500 bg-neutral-900/20 rounded-xl border border-neutral-800 border-dashed">
-                        No new notifications.
-                    </div>
-                ) : (
-                    notifications.map((n: any) => (
-                        <Card key={n.id} className="bg-neutral-900/50 border-neutral-800">
-                            <CardHeader className="pb-2">
-                                <div className="flex justify-between">
-                                    <CardTitle className="text-lg text-emerald-400">{n.title}</CardTitle>
-                                    <span className="text-xs text-neutral-500">{n.time}</span>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-neutral-300">{n.message}</p>
-                            </CardContent>
-                        </Card>
-                    ))
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                        Notifications
+                        {unreadCount > 0 && (
+                            <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{unreadCount}</span>
+                        )}
+                    </h2>
+                    <p className="text-neutral-400 text-sm mt-1">Malpractice alerts, system messages, and student activity</p>
+                </div>
+                {notifications.length > 0 && (
+                    <Button variant="outline" onClick={handleMarkAllRead} className="border-neutral-700 text-neutral-300 text-sm">
+                        Mark All Read
+                    </Button>
                 )}
             </div>
+
+            {loading ? (
+                <div className="flex justify-center py-16">
+                    <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+            ) : notifications.length === 0 ? (
+                <div className="text-center py-16 text-neutral-500 bg-neutral-900/20 rounded-xl border border-neutral-800 border-dashed">
+                    <Mail className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    No notifications yet.
+                </div>
+            ) : (
+                <div className="grid gap-3">
+                    {notifications.map((n: any) => {
+                        const mal = isMal(n);
+                        const displayMsg = (n.message || '').replace(/\[student_id:\d+,assessment_id:\d+\]/g, '').trim();
+                        return (
+                            <Card key={n.id} className={`border transition-all ${
+                                !n.is_read
+                                    ? mal ? 'bg-red-950/20 border-red-800/60' : 'bg-neutral-800/60 border-neutral-700'
+                                    : 'bg-neutral-900/30 border-neutral-800/50 opacity-60'
+                            }`}>
+                                <CardHeader className="pb-2">
+                                    <div className="flex justify-between items-start gap-4">
+                                        <div className="flex items-start gap-2">
+                                            {!n.is_read && (
+                                                <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${mal ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`} />
+                                            )}
+                                            <CardTitle className={`text-base font-semibold leading-snug ${mal ? 'text-red-400' : 'text-white'}`}>
+                                                {n.title}
+                                            </CardTitle>
+                                        </div>
+                                        <span className="text-xs text-neutral-500 shrink-0">{fmtTime(n.created_at)}</span>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                    <p className="text-neutral-300 text-sm whitespace-pre-wrap leading-relaxed">{displayMsg}</p>
+                                    <div className="flex gap-2 flex-wrap pt-1">
+                                        {!n.is_read && (
+                                            <Button variant="ghost" size="sm" className="text-neutral-400 hover:text-white h-7 text-xs px-2"
+                                                onClick={() => handleMarkRead(n.id)}>
+                                                Mark as Read
+                                            </Button>
+                                        )}
+                                        {mal && hasRetestTag(n) && !n.is_read && (
+                                            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-7 text-xs"
+                                                disabled={retesting === n.id}
+                                                onClick={() => handleAllowRetest(n)}>
+                                                {retesting === n.id ? 'Granting...' : '✅ Allow Retest'}
+                                            </Button>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 }
 
+// ============================================================
+// DASHBOARD OVERVIEW
+// ============================================================
 function DashboardOverview() {
     const [stats, setStats] = useState({ courses: 0, students: 0 });
     const storedName = localStorage.getItem("currentUserName") || "Teacher";
@@ -129,13 +255,14 @@ function DashboardOverview() {
                     </CardContent>
                 </Card>
             </div>
-
-            {/* Analytics Section */}
             <DashboardAnalytics />
         </div>
     );
 }
 
+// ============================================================
+// MANAGE STUDENTS
+// ============================================================
 function ManageStudents() {
     const [courses, setCourses] = useState([]);
     const [selectedCourse, setSelectedCourse] = useState("");
@@ -143,7 +270,6 @@ function ManageStudents() {
     const [regNo, setRegNo] = useState("");
     const [loading, setLoading] = useState(false);
 
-    // Fetch Courses
     useEffect(() => {
         fetchWithAuth(`${API_URL}/teacher/courses`, { headers: getAuthHeaders() })
             .then(res => res.json())
@@ -153,78 +279,49 @@ function ManageStudents() {
                     if (data.length > 0) setSelectedCourse(String(data[0].id));
                 }
             })
-            .catch(err => toast.error("Failed to load courses"));
+            .catch(() => toast.error("Failed to load courses"));
     }, []);
 
-    // Fetch Students for Course
     const fetchStudents = () => {
         if (!selectedCourse) return;
         fetchWithAuth(`${API_URL}/teacher/courses/${selectedCourse}/students`, { headers: getAuthHeaders() })
             .then(res => res.json())
-            .then(data => {
-                if (Array.isArray(data)) setStudents(data);
-                else setStudents([]);
-            })
-            .catch(err => toast.error("Failed to load students"));
+            .then(data => { if (Array.isArray(data)) setStudents(data); else setStudents([]); })
+            .catch(() => toast.error("Failed to load students"));
     };
 
-    useEffect(() => {
-        fetchStudents();
-    }, [selectedCourse]);
+    useEffect(() => { fetchStudents(); }, [selectedCourse]);
 
     const handleRemoveStudent = async (studentId: string) => {
         if (!confirm("Remove this student from the course?")) return;
         setLoading(true);
         try {
             const res = await fetchWithAuth(`${API_URL}/teacher/courses/${selectedCourse}/students/${studentId}`, {
-                method: 'DELETE',
-                headers: getAuthHeaders()
+                method: 'DELETE', headers: getAuthHeaders()
             });
             const data = await res.json();
-            if (res.ok) {
-                toast.success(data.message || "Student removed");
-                fetchStudents();
-            } else {
-                toast.error(data.message || "Failed to remove student");
-            }
-        } catch (err) {
-            toast.error("Error removing student");
-        } finally {
-            setLoading(false);
-        }
+            if (res.ok) { toast.success(data.message || "Student removed"); fetchStudents(); }
+            else toast.error(data.message || "Failed to remove student");
+        } catch { toast.error("Error removing student"); } finally { setLoading(false); }
     };
 
     const handleAddStudent = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!regNo || !selectedCourse) return;
-
         setLoading(true);
         try {
             const res = await fetchWithAuth(`${API_URL}/teacher/courses/${selectedCourse}/enroll`, {
-                method: 'POST',
-                headers: getAuthHeaders(),
-                body: JSON.stringify({ register_number: regNo })
+                method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ register_number: regNo })
             });
             const data = await res.json();
-            if (res.ok) {
-                toast.success(data.message);
-                setRegNo("");
-                fetchStudents();
-            } else {
-                toast.error(data.message);
-            }
-        } catch (err) {
-            toast.error("Failed to add student");
-        } finally {
-            setLoading(false);
-        }
+            if (res.ok) { toast.success(data.message); setRegNo(""); fetchStudents(); }
+            else toast.error(data.message);
+        } catch { toast.error("Failed to add student"); } finally { setLoading(false); }
     };
 
     return (
         <div className="space-y-6">
             <h2 className="text-2xl font-bold text-white">Manage Course Enrollments</h2>
-
-            {/* Course Selector */}
             {courses.length > 0 ? (
                 <div className="flex gap-4 items-center bg-neutral-900/50 p-4 rounded-lg border border-neutral-800">
                     <Label className="text-neutral-400">Select Course:</Label>
@@ -244,105 +341,90 @@ function ManageStudents() {
             )}
 
             {selectedCourse && (
-                <>
-                    {/* Students List & Manual Override */}
-                    <Card className="bg-neutral-900/40 border-neutral-800">
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <div>
-                                <CardTitle className="text-lg">Enrolled Students ({students.length})</CardTitle>
-                                <CardDescription className="text-emerald-400 mt-1">
-                                    Students are automatically enrolled based on Department, Year, Semester, and Section.
-                                </CardDescription>
-                            </div>
-                            <Dialog>
-                                <DialogTrigger asChild>
-                                    <Button variant="outline" className="border-neutral-700 hover:bg-neutral-800 bg-neutral-950">
-                                        <Plus className="h-4 w-4 mr-2" /> Manual Add
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent className="bg-neutral-950 border-neutral-800">
-                                    <DialogHeader>
-                                        <DialogTitle className="text-white">Manually Add Student</DialogTitle>
-                                        <DialogDescription className="text-neutral-400">
-                                            Override automatic enrollment by adding a student manually using their Register Number.
-                                        </DialogDescription>
-                                    </DialogHeader>
-                                    <form onSubmit={handleAddStudent} className="space-y-4 pt-4">
-                                        <div className="space-y-2">
-                                            <Label>Register Number</Label>
-                                            <Input
-                                                placeholder="e.g., 21CSE001"
-                                                value={regNo}
-                                                onChange={e => setRegNo(e.target.value)}
-                                                className="bg-neutral-900 border-neutral-700"
-                                                required
-                                            />
-                                        </div>
-                                        <DialogFooter>
-                                            <Button type="submit" disabled={loading} className="bg-emerald-600 hover:bg-emerald-700">
-                                                {loading ? "Adding..." : "Add Student"}
-                                            </Button>
-                                        </DialogFooter>
-                                    </form>
-                                </DialogContent>
-                            </Dialog>
-                        </CardHeader>
-                        <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow className="border-neutral-800">
-                                        <TableHead className="text-neutral-400">Register No</TableHead>
-                                        <TableHead className="text-neutral-400">Name</TableHead>
-                                        <TableHead className="text-neutral-400">Email</TableHead>
-                                        <TableHead className="text-right text-neutral-400">Actions</TableHead>
+                <Card className="bg-neutral-900/40 border-neutral-800">
+                    <CardHeader className="flex flex-row items-center justify-between">
+                        <div>
+                            <CardTitle className="text-lg">Enrolled Students ({students.length})</CardTitle>
+                            <CardDescription className="text-emerald-400 mt-1">
+                                Students are automatically enrolled based on Department, Year, Semester, and Section.
+                            </CardDescription>
+                        </div>
+                        <Dialog>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" className="border-neutral-700 hover:bg-neutral-800 bg-neutral-950">
+                                    <Plus className="h-4 w-4 mr-2" /> Manual Add
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="bg-neutral-950 border-neutral-800">
+                                <DialogHeader>
+                                    <DialogTitle className="text-white">Manually Add Student</DialogTitle>
+                                    <DialogDescription className="text-neutral-400">
+                                        Override automatic enrollment by adding a student manually using their Register Number.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <form onSubmit={handleAddStudent} className="space-y-4 pt-4">
+                                    <div className="space-y-2">
+                                        <Label>Register Number</Label>
+                                        <Input placeholder="e.g., 21CSE001" value={regNo} onChange={e => setRegNo(e.target.value)}
+                                            className="bg-neutral-900 border-neutral-700" required />
+                                    </div>
+                                    <DialogFooter>
+                                        <Button type="submit" disabled={loading} className="bg-emerald-600 hover:bg-emerald-700">
+                                            {loading ? "Adding..." : "Add Student"}
+                                        </Button>
+                                    </DialogFooter>
+                                </form>
+                            </DialogContent>
+                        </Dialog>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="border-neutral-800">
+                                    <TableHead className="text-neutral-400">Register No</TableHead>
+                                    <TableHead className="text-neutral-400">Name</TableHead>
+                                    <TableHead className="text-neutral-400">Email</TableHead>
+                                    <TableHead className="text-right text-neutral-400">Actions</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {students.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={4} className="text-center py-8 text-neutral-500">No students enrolled yet.</TableCell>
                                     </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {students.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={4} className="text-center py-8 text-neutral-500">
-                                                No students enrolled yet.
+                                ) : (
+                                    students.map((student: any) => (
+                                        <TableRow key={student.id} className="border-neutral-800">
+                                            <TableCell className="font-mono text-neutral-300">{student.register_number}</TableCell>
+                                            <TableCell className="text-neutral-200">{student.name}</TableCell>
+                                            <TableCell className="text-neutral-400">{student.email || '-'}</TableCell>
+                                            <TableCell className="text-right">
+                                                <Button variant="ghost" size="sm" onClick={() => handleRemoveStudent(student.id)}
+                                                    className="h-8 text-neutral-500 hover:text-red-400 hover:bg-red-950/30">
+                                                    Remove
+                                                </Button>
                                             </TableCell>
                                         </TableRow>
-                                    ) : (
-                                        students.map((student: any) => (
-                                            <TableRow key={student.id} className="border-neutral-800">
-                                                <TableCell className="font-mono text-neutral-300">{student.register_number}</TableCell>
-                                                <TableCell className="text-neutral-200">{student.name}</TableCell>
-                                                <TableCell className="text-neutral-400">{student.email || '-'}</TableCell>
-                                                <TableCell className="text-right">
-                                                    <Button 
-                                                        variant="ghost" 
-                                                        size="sm" 
-                                                        onClick={() => handleRemoveStudent(student.id)}
-                                                        className="h-8 text-neutral-500 hover:text-red-400 hover:bg-red-950/30"
-                                                    >
-                                                        Remove
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                </>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
             )}
         </div>
     );
 }
 
+// ============================================================
+// MY COURSES
+// ============================================================
 function MyCourses() {
     const [courses, setCourses] = useState([]);
     const [isAddOpen, setIsAddOpen] = useState(false);
-
-    // Delete State
     const [deleteCourseId, setDeleteCourseId] = useState<string | null>(null);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [deleting, setDeleting] = useState(false);
-
-    // New Course Form State
     const [newCourse, setNewCourse] = useState({
         name: "", code: "", department_id: "", year: "1", semester: "1", section: "A"
     });
@@ -352,34 +434,26 @@ function MyCourses() {
     const fetchCourses = () => {
         fetchWithAuth(`${API_URL}/teacher/courses`, { headers: getAuthHeaders() })
             .then(res => res.json())
-            .then(data => {
-                if (Array.isArray(data)) setCourses(data);
-                else setCourses([]);
-            })
-            .catch(err => toast.error("Failed to load courses"));
+            .then(data => { if (Array.isArray(data)) setCourses(data); else setCourses([]); })
+            .catch(() => toast.error("Failed to load courses"));
     };
 
     useEffect(() => {
         fetchCourses();
         fetchWithAuth(`${API_URL}/admin/departments`, { headers: getAuthHeaders() })
             .then(res => res.json())
-            .then(data => {
-                if (Array.isArray(data)) setDepartments(data);
-            })
+            .then(data => { if (Array.isArray(data)) setDepartments(data); })
             .catch(err => console.error(err));
     }, []);
 
     const handleCreateCourse = async () => {
         if (!newCourse.name || !newCourse.code || !newCourse.department_id) {
-            toast.error("Please fill all fields, including department.");
-            return;
+            toast.error("Please fill all fields, including department."); return;
         }
         setCreating(true);
         try {
             const res = await fetchWithAuth(`${API_URL}/teacher/courses`, {
-                method: 'POST',
-                headers: getAuthHeaders(),
-                body: JSON.stringify(newCourse)
+                method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(newCourse)
             });
             const data = await res.json();
             if (res.ok) {
@@ -387,30 +461,19 @@ function MyCourses() {
                 setIsAddOpen(false);
                 setNewCourse({ name: "", code: "", department_id: "", year: "1", semester: "1", section: "A" });
                 fetchCourses();
-            } else {
-                toast.error("Failed to create course");
-            }
-        } catch (err) {
-            toast.error("Error creating course");
-        } finally {
-            setCreating(false);
-        }
+            } else toast.error("Failed to create course");
+        } catch { toast.error("Error creating course"); } finally { setCreating(false); }
     };
 
-    const confirmDelete = (courseId: string) => {
-        setDeleteCourseId(courseId);
-        setDeleteDialogOpen(true);
-    };
+    const confirmDelete = (courseId: string) => { setDeleteCourseId(courseId); setDeleteDialogOpen(true); };
 
     const handleDeleteCourse = async () => {
         if (!deleteCourseId) return;
         setDeleting(true);
         try {
             const res = await fetchWithAuth(`${API_URL}/teacher/courses/${deleteCourseId}`, {
-                method: 'DELETE',
-                headers: getAuthHeaders()
+                method: 'DELETE', headers: getAuthHeaders()
             });
-
             if (res.ok) {
                 toast.success("Course deleted successfully");
                 setCourses(courses.filter((c: any) => String(c.id) !== deleteCourseId));
@@ -419,12 +482,8 @@ function MyCourses() {
                 const data = await res.json();
                 toast.error(data.message || "Failed to delete course");
             }
-        } catch (err) {
-            toast.error("Error deleting course");
-        } finally {
-            setDeleting(false);
-            setDeleteCourseId(null);
-        }
+        } catch { toast.error("Error deleting course");
+        } finally { setDeleting(false); setDeleteCourseId(null); }
     };
 
     return (
@@ -433,36 +492,26 @@ function MyCourses() {
                 <h2 className="text-2xl font-bold text-white">My Courses</h2>
                 <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                     <DialogTrigger asChild>
-                        <Button className="bg-emerald-600 hover:bg-emerald-700">
-                            <Plus className="mr-2 h-4 w-4" /> Add Course
-                        </Button>
+                        <Button className="bg-emerald-600 hover:bg-emerald-700"><Plus className="mr-2 h-4 w-4" /> Add Course</Button>
                     </DialogTrigger>
                     <DialogContent className="bg-neutral-950 border-neutral-800">
                         <DialogHeader>
                             <DialogTitle className="text-white">Create New Course</DialogTitle>
-                            <DialogDescription className="text-neutral-400">
-                                Enter the details below to create a new course.
-                            </DialogDescription>
+                            <DialogDescription className="text-neutral-400">Enter the details below to create a new course.</DialogDescription>
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label>Course Name</Label>
-                                    <Input
-                                        placeholder="e.g. Mathematics I"
-                                        value={newCourse.name}
+                                    <Input placeholder="e.g. Mathematics I" value={newCourse.name}
                                         onChange={e => setNewCourse({ ...newCourse, name: e.target.value })}
-                                        className="bg-neutral-900 border-neutral-700"
-                                    />
+                                        className="bg-neutral-900 border-neutral-700" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Course Code</Label>
-                                    <Input
-                                        placeholder="e.g. MAT101"
-                                        value={newCourse.code}
+                                    <Input placeholder="e.g. MAT101" value={newCourse.code}
                                         onChange={e => setNewCourse({ ...newCourse, code: e.target.value })}
-                                        className="bg-neutral-900 border-neutral-700"
-                                    />
+                                        className="bg-neutral-900 border-neutral-700" />
                                 </div>
                             </div>
                             <div className="space-y-2">
@@ -496,7 +545,7 @@ function MyCourses() {
                                     <Select value={newCourse.semester} onValueChange={v => setNewCourse({ ...newCourse, semester: v })}>
                                         <SelectTrigger className="bg-neutral-900 border-neutral-700"><SelectValue /></SelectTrigger>
                                         <SelectContent>
-                                            {[1, 2, 3, 4, 5, 6, 7, 8].map(s => <SelectItem key={s} value={String(s)}>Sem {s}</SelectItem>)}
+                                            {[1,2,3,4,5,6,7,8].map(s => <SelectItem key={s} value={String(s)}>Sem {s}</SelectItem>)}
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -505,7 +554,7 @@ function MyCourses() {
                                     <Select value={newCourse.section} onValueChange={v => setNewCourse({ ...newCourse, section: v })}>
                                         <SelectTrigger className="bg-neutral-900 border-neutral-700"><SelectValue /></SelectTrigger>
                                         <SelectContent>
-                                            {['A', 'B', 'C', 'D'].map(s => <SelectItem key={s} value={s}>Sec {s}</SelectItem>)}
+                                            {['A','B','C','D'].map(s => <SelectItem key={s} value={s}>Sec {s}</SelectItem>)}
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -534,10 +583,8 @@ function MyCourses() {
                                         <CardTitle className="text-lg text-emerald-400">{course.name}</CardTitle>
                                         <CardDescription>{course.code}</CardDescription>
                                     </div>
-                                    <div className="flex flex-col items-end gap-2">
-                                        <div className="px-2 py-1 bg-neutral-800 rounded text-xs text-neutral-400 font-mono">
-                                            {course.year} - {course.section}
-                                        </div>
+                                    <div className="px-2 py-1 bg-neutral-800 rounded text-xs text-neutral-400 font-mono">
+                                        {course.year} - {course.section}
                                     </div>
                                 </div>
                             </CardHeader>
@@ -547,15 +594,10 @@ function MyCourses() {
                                     <span>Year {course.year}</span>
                                 </div>
                             </CardContent>
-
-                            {/* Hover Delete Button */}
                             <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Button
-                                    size="icon"
-                                    variant="destructive"
+                                <Button size="icon" variant="destructive"
                                     className="h-8 w-8 bg-red-900/50 hover:bg-red-600 border border-red-800/50"
-                                    onClick={() => confirmDelete(String(course.id))}
-                                >
+                                    onClick={() => confirmDelete(String(course.id))}>
                                     <Trash2 className="h-4 w-4" />
                                 </Button>
                             </div>
@@ -564,7 +606,6 @@ function MyCourses() {
                 )}
             </div>
 
-            {/* Delete Confirmation Dialog */}
             <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                 <AlertDialogContent className="bg-neutral-950 border-neutral-800">
                     <AlertDialogHeader>
@@ -576,11 +617,7 @@ function MyCourses() {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel className="bg-neutral-900 text-white hover:bg-neutral-800 border-neutral-700">Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={handleDeleteCourse}
-                            className="bg-red-600 hover:bg-red-700 text-white"
-                            disabled={deleting}
-                        >
+                        <AlertDialogAction onClick={handleDeleteCourse} className="bg-red-600 hover:bg-red-700 text-white" disabled={deleting}>
                             {deleting ? "Deleting..." : "Delete Course"}
                         </AlertDialogAction>
                     </AlertDialogFooter>
@@ -590,6 +627,9 @@ function MyCourses() {
     );
 }
 
+// ============================================================
+// ATTENDANCE TRACKER
+// ============================================================
 function AttendanceTracker() {
     const [courses, setCourses] = useState([]);
     const [selectedCourse, setSelectedCourse] = useState("");
@@ -615,39 +655,26 @@ function AttendanceTracker() {
             .then(res => res.json())
             .then(data => {
                 setStudents(data);
-                const initialAuth: Record<string, string> = {};
-                data.forEach((s: any) => initialAuth[s.id] = "Present");
-                setAttendance(initialAuth);
+                const init: Record<string, string> = {};
+                data.forEach((s: any) => init[s.id] = "Present");
+                setAttendance(init);
             })
             .catch(err => console.error(err));
     }, [selectedCourse]);
 
     const submitAttendance = async () => {
-        if (!selectedCourse) {
-            toast.error("Please select a course");
-            return;
-        }
-
+        if (!selectedCourse) { toast.error("Please select a course"); return; }
         const attendanceData = Object.entries(attendance).map(([studentId, status]) => ({
-            student_id: parseInt(studentId),
-            status
+            student_id: parseInt(studentId), status
         }));
-
         try {
             const res = await fetchWithAuth(`${API_URL}/teacher/attendance`, {
-                method: 'POST',
-                headers: getAuthHeaders(),
-                body: JSON.stringify({
-                    course_id: parseInt(selectedCourse),
-                    date,
-                    attendance_data: attendanceData
-                })
+                method: 'POST', headers: getAuthHeaders(),
+                body: JSON.stringify({ course_id: parseInt(selectedCourse), date, attendance_data: attendanceData })
             });
             if (res.ok) toast.success("Attendance marked successfully");
             else throw new Error();
-        } catch (err) {
-            toast.error("Failed to submit attendance");
-        }
+        } catch { toast.error("Failed to submit attendance"); }
     };
 
     return (
@@ -682,9 +709,7 @@ function AttendanceTracker() {
                         <TableBody>
                             {students.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={3} className="text-center py-8 text-neutral-500">
-                                        No students enrolled in this course.
-                                    </TableCell>
+                                    <TableCell colSpan={3} className="text-center py-8 text-neutral-500">No students enrolled in this course.</TableCell>
                                 </TableRow>
                             ) : (
                                 students.map((student: any) => (
@@ -694,13 +719,10 @@ function AttendanceTracker() {
                                         <TableCell className="text-center">
                                             <div className="flex justify-center gap-2">
                                                 {['Present', 'Absent', 'On Duty'].map(status => (
-                                                    <Button
-                                                        key={status}
-                                                        size="sm"
+                                                    <Button key={status} size="sm"
                                                         variant={attendance[student.id] === status ? (status === 'Absent' ? 'destructive' : 'default') : 'outline'}
                                                         className={attendance[student.id] === status ? (status === 'Present' ? 'bg-emerald-600 hover:bg-emerald-700' : '') : 'border-neutral-700 hover:bg-neutral-800'}
-                                                        onClick={() => setAttendance({ ...attendance, [student.id]: status })}
-                                                    >
+                                                        onClick={() => setAttendance({ ...attendance, [student.id]: status })}>
                                                         {status}
                                                     </Button>
                                                 ))}
@@ -726,12 +748,10 @@ function AttendanceTracker() {
     );
 }
 
+// ============================================================
+// TIMETABLE VIEW
+// ============================================================
 function TimetableView() {
-    const [timetable, setTimetable] = useState([]);
-
-    useEffect(() => {
-    }, []);
-
     return (
         <div className="space-y-6">
             <h2 className="text-2xl font-bold text-white">My Timetable</h2>
@@ -742,6 +762,9 @@ function TimetableView() {
     );
 }
 
+// ============================================================
+// REPORTS & ANALYTICS
+// ============================================================
 function ReportsAnalytics() {
     const [students, setStudents] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -750,24 +773,15 @@ function ReportsAnalytics() {
     useEffect(() => {
         fetchWithAuth(`${API_URL}/teacher/analytics`, { headers: getAuthHeaders() })
             .then(res => res.json())
-            .then(data => {
-                setStudents(data);
-                setLoading(false);
-            })
-            .catch(err => {
-                console.error(err);
-                toast.error("Failed to load analytics");
-                setLoading(false);
-            });
+            .then(data => { setStudents(data); setLoading(false); })
+            .catch(err => { console.error(err); toast.error("Failed to load analytics"); setLoading(false); });
     }, []);
 
     const sendAlert = async (type: 'attendance' | 'marks', studentId?: number) => {
-        // If studentId valid, send to that one. Else, send to all 'at risk' for that type.
-        let targets = [];
+        let targets: any[] = [];
         if (studentId) {
-            targets = [students.find((s: any) => s.student_id === studentId)?.user_id];
+            targets = [(students.find((s: any) => s.student_id === studentId) as any)?.user_id];
         } else {
-            // Bulk send
             if (Array.isArray(students)) {
                 targets = students
                     .filter((s: any) => {
@@ -778,29 +792,15 @@ function ReportsAnalytics() {
                     .map((s: any) => s.user_id);
             }
         }
-
-        if (targets.length === 0) {
-            toast.info("No students found for this alert.");
-            return;
-        }
-
+        if (targets.length === 0) { toast.info("No students found for this alert."); return; }
         setSending(true);
         try {
             const res = await fetchWithAuth(`${API_URL}/teacher/notifications/send-alerts`, {
-                method: 'POST',
-                headers: getAuthHeaders(),
-                body: JSON.stringify({ student_ids: targets, type })
+                method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ student_ids: targets, type })
             });
-            if (res.ok) {
-                toast.success(`Alerts sent to ${targets.length} student(s)`);
-            } else {
-                toast.error("Failed to send alerts");
-            }
-        } catch (err) {
-            toast.error("Error sending alerts");
-        } finally {
-            setSending(false);
-        }
+            if (res.ok) toast.success(`Alerts sent to ${targets.length} student(s)`);
+            else toast.error("Failed to send alerts");
+        } catch { toast.error("Error sending alerts"); } finally { setSending(false); }
     };
 
     return (
@@ -808,20 +808,10 @@ function ReportsAnalytics() {
             <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-white">Reports & Analytics</h2>
                 <div className="flex gap-2">
-                    <Button
-                        onClick={() => sendAlert('attendance')}
-                        disabled={sending}
-                        variant="outline"
-                        className="border-red-500/50 text-red-400 hover:bg-red-950/30"
-                    >
+                    <Button onClick={() => sendAlert('attendance')} disabled={sending} variant="outline" className="border-red-500/50 text-red-400 hover:bg-red-950/30">
                         <AlertTriangle className="mr-2 h-4 w-4" /> Alert Low Attendance
                     </Button>
-                    <Button
-                        onClick={() => sendAlert('marks')}
-                        disabled={sending}
-                        variant="outline"
-                        className="border-amber-500/50 text-amber-400 hover:bg-amber-950/30"
-                    >
+                    <Button onClick={() => sendAlert('marks')} disabled={sending} variant="outline" className="border-amber-500/50 text-amber-400 hover:bg-amber-950/30">
                         <AlertTriangle className="mr-2 h-4 w-4" /> Alert Low Marks
                     </Button>
                 </div>
@@ -845,13 +835,11 @@ function ReportsAnalytics() {
                         </TableHeader>
                         <TableBody>
                             {loading ? (
-                                <TableRow>
-                                    <TableCell colSpan={5} className="text-center py-8">Loading analytics...</TableCell>
-                                </TableRow>
+                                <TableRow><TableCell colSpan={5} className="text-center py-8">Loading analytics...</TableCell></TableRow>
                             ) : !Array.isArray(students) || students.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={5} className="text-center py-8 text-neutral-500">
-                                        {!Array.isArray(students) ? "Failed to load data. Please try again." : "No students found."}
+                                        {!Array.isArray(students) ? "Failed to load data." : "No students found."}
                                     </TableCell>
                                 </TableRow>
                             ) : (
@@ -875,13 +863,9 @@ function ReportsAnalytics() {
                                             <TableCell className="text-right">
                                                 <div className="flex justify-end gap-2">
                                                     {(lowAtt || lowMarks) && (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            className="h-8 w-8 p-0 text-neutral-400 hover:text-white"
+                                                        <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-neutral-400 hover:text-white"
                                                             title="Send Individual Alert"
-                                                            onClick={() => sendAlert(lowAtt ? 'attendance' : 'marks', s.student_id)}
-                                                        >
+                                                            onClick={() => sendAlert(lowAtt ? 'attendance' : 'marks', s.student_id)}>
                                                             <Mail className="h-4 w-4" />
                                                         </Button>
                                                     )}

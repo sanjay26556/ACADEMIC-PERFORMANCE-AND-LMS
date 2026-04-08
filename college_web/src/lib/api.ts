@@ -23,6 +23,21 @@ api.interceptors.request.use(
     }
 );
 
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+            // Check if not already on login page to avoid infinite loops if login itself fails
+            if (window.location.pathname !== '/login' && !window.location.pathname.includes('login')) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                window.location.href = '/login';
+            }
+        }
+        return Promise.reject(error);
+    }
+);
+
 export const auth = {
     login: (identifier: string, password: string) =>
         api.post('/auth/login', { register_number: identifier, password }),
