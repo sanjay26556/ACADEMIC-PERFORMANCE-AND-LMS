@@ -2,6 +2,15 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from "sonner";
 
 // Types
+export interface College {
+    id: string;
+    name: string;
+    email: string;
+    address: string;
+    contactNumber: string;
+    allocatedCourses: any[];
+}
+
 export interface Department {
     id: number;
     name: string;
@@ -34,7 +43,7 @@ export interface LMSContextType {
     teachers: Teacher[];
     departments: Department[];
     courses: any[];
-    colleges: any[];
+    colleges: College[];
     refreshData: () => void;
 
     // Actions
@@ -43,6 +52,9 @@ export interface LMSContextType {
     editUser: (id: number, userData: any) => Promise<void>;
     deleteUser: (userId: number) => Promise<void>;
     addStudentToClass: (registerNumber: string) => Promise<boolean>;
+    addCourse: (courseData: any) => void;
+    deleteCourse: (courseId: string) => void;
+    addCollege: (collegeData: College) => void;
 
     // Loading State
     isLoading: boolean;
@@ -228,6 +240,18 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
     };
 
+    const addCourse = (courseData: any) => {
+        console.log("Mock add course", courseData);
+    };
+
+    const deleteCourse = (courseId: string) => {
+        console.log("Mock delete course", courseId);
+    };
+
+    const addCollege = (collegeData: College) => {
+        console.log("Mock add college", collegeData);
+    };
+
     return (
         <LMSContext.Provider value={{
             students,
@@ -241,6 +265,9 @@ export const LMSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             editUser,
             deleteUser,
             addStudentToClass,
+            addCourse,
+            deleteCourse,
+            addCollege,
             isLoading
         }}>
             {children}

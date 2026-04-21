@@ -4,6 +4,8 @@ const pool = require('../db');
 const { authenticateToken, authorizeRole } = require('../middleware/auth');
 
 // Middleware to get Teacher ID
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+
 const getTeacherId = async (req, res, next) => {
     try {
         if (req.user.role !== 'teacher') return next();
@@ -18,6 +20,76 @@ const getTeacherId = async (req, res, next) => {
 };
 
 router.use(authenticateToken);
+
+// AI Assignment Generation (Teacher Only)
+router.post('/generate-ai', authorizeRole(['teacher']), async (req, res) => {
+    const { prompt, category } = req.body;
+    
+    // Quick keyword-based validation layer (as requested)
+    const NON_ACADEMIC_KEYWORDS = ['joke', 'movie', 'song', 'weather', 'sports', 'politics', 'entertainment', 'recipe', 'dance', 'casual', 'hello', 'hi'];
+    const hasNonAcademic = NON_ACADEMIC_KEYWORDS.some(word => prompt.toLowerCase().includes(word));
+    
+    if (hasNonAcademic) {
+        return res.json({ 
+            error: "This assistant is designed only for educational and assignment-related content. Please enter a valid academic query." 
+        });
+    }
+
+    try {
+        if (!process.env.GEMINI_API_KEY) {
+             // Mock response for demo purposes if no API key is provided
+             return res.json({
+                 title: `Generated ${category || 'Academic'} Assignment`,
+                 description: `This is an auto-generated assignment based on your prompt: "${prompt}".\n\n**Instructions:**\n1. Analyze the problem statement.\n2. Write your solution.\n3. Verify against constraints.\n\n*Note: Add GEMINI_API_KEY to your .env to get real AI-generated content.*`,
+             });
+        }
+
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        // We use gemini-1.5-flash for faster generation, or 1.5-pro
+        const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+
+        const formatInstructions = category === 'Coding' 
+            ? 'Format must include: Title, Problem Statement, Input Format, Output Format, Constraints, Sample Input/Output, Difficulty Level.'
+            : category === 'Aptitude' 
+            ? 'Format must include: Title, Questions (multiple), Answers, Explanation.'
+            : 'Format must include: Title, Description, Tasks / Questions, Reference material (optional).';
+
+        const systemPrompt = `You are an academic assistant designed to generate assignment content only. You can create coding assignments, aptitude questions, and subject-oriented academic tasks.
+
+If the user asks anything unrelated to education, respond ONLY with the exact phrase:
+"This assistant is designed only for educational and assignment-related content. Please enter a valid academic query."
+
+Generate structured, clean, and ready-to-use assignment content.
+Output strictly as a JSON object with two keys: "title" (string) and "description" (string containing the formatted markdown content).
+${formatInstructions}
+
+Category: ${category}
+User Prompt: ${prompt}`;
+
+        const result = await model.generateContent(systemPrompt);
+        const responseText = result.response.text();
+        
+        // try to parse JSON
+        try {
+             let cleanStr = responseText.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '').trim();
+             const data = JSON.parse(cleanStr);
+             return res.json(data);
+        } catch(e) {
+            if(responseText.includes("This assistant is designed only")) {
+                return res.json({ error: "This assistant is designed only for educational and assignment-related content. Please enter a valid academic query." });
+            }
+            return res.json({ title: `${category || 'Generated'} Assignment`, description: responseText });
+        }
+        
+    } catch (error) {
+        console.error("AI Generation Error", error);
+        let errorMsg = "Failed to generate assignment.";
+        if (error.message && error.message.includes("503")) {
+            errorMsg = "Google API is experiencing high demand. Please try again in a few seconds.";
+        }
+        res.json({ error: errorMsg });
+    }
+});
 
 // Create Assignment (Teacher Only)
 router.post('/', authorizeRole(['teacher']), getTeacherId, async (req, res) => {

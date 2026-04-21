@@ -5,9 +5,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Plus, Trash2, ArrowRight, ArrowLeft, Save, Calendar, Clock, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, ArrowRight, ArrowLeft, Save, Calendar, Clock, AlertTriangle, Bot, Sparkles } from "lucide-react";
 
 export const fetchWithAuth = async (url: string, options: any = {}) => {
     const res = await fetch(url, options);
@@ -65,6 +66,11 @@ export default function AssessmentBuilder({ onSuccess }: { onSuccess: () => void
 
     const [saving, setSaving] = useState(false);
 
+    const [aiPrompt, setAiPrompt] = useState("");
+    const [aiGenerating, setAiGenerating] = useState(false);
+    const [aiResponse, setAiResponse] = useState<any>(null);
+    const [showAI, setShowAI] = useState(false);
+
     useEffect(() => {
         fetchAssignments();
     }, []);
@@ -97,6 +103,66 @@ export default function AssessmentBuilder({ onSuccess }: { onSuccess: () => void
         setQuestions(questions.map(q => q.id === id ? { ...q, [field]: value } : q));
     };
 
+    
+
+    const handleAIGenerate = async () => {
+        if (!aiPrompt.trim()) return;
+        setAiGenerating(true);
+        setAiResponse(null);
+        try {
+            const res = await fetchWithAuth(`${API_URL}/assessments/generate-ai`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ prompt: aiPrompt, type: basicInfo.type })
+            });
+            const data = await res.json();
+            if (data.error) {
+                toast.error(data.error);
+                setAiResponse({ error: data.error });
+            } else {
+                setAiResponse(data);
+                toast.success("Content drafted!");
+            }
+        } catch (err: any) {
+            toast.error(err.message || "Failed to generate AI content");
+            setAiResponse({ error: "Failed to generate AI content" });
+        } finally {
+            setAiGenerating(false);
+        }
+    };
+
+    const applyAIAssessment = () => {
+        if (!aiResponse || aiResponse.error) return;
+        
+        if (basicInfo.type === 'Coding') {
+            setCodingProblem(prev => ({
+                ...prev,
+                title: aiResponse.title || prev.title,
+                description: aiResponse.description || prev.description,
+                starter_code: aiResponse.starter_code || prev.starter_code,
+                test_cases: aiResponse.test_cases?.length > 0 ? aiResponse.test_cases : prev.test_cases,
+                allowed_languages: prev.allowed_languages,
+                marks: prev.marks,
+                evaluation_mode: prev.evaluation_mode
+            }));
+        } else {
+            if (aiResponse.questions && Array.isArray(aiResponse.questions)) {
+                const formattedQuestions = aiResponse.questions.map((q: any, i: number) => ({
+                    id: Date.now() + i,
+                    question_text: q.question_text || "",
+                    type: basicInfo.type === 'MCQ' ? "MCQ" : "Subject",
+                    options: q.options || ["", "", "", ""],
+                    correct_answer: q.correct_answer || "",
+                    marks: 5,
+                    negative_marks: 0
+                }));
+                setQuestions(formattedQuestions);
+            }
+        }
+        
+        setShowAI(false);
+        toast.success("AI Content applied successfully!");
+    };
     const handleSave = async (status: string = "Draft") => {
         setSaving(true);
 
@@ -215,7 +281,97 @@ export default function AssessmentBuilder({ onSuccess }: { onSuccess: () => void
 
             {/* Step 2: Content (MCQ/Subject or Coding) */}
             {step === 2 && (
-                <div className="flex flex-col h-full">
+                <div className="flex flex-col h-full space-y-6">
+                    {/* AI Generator Panel */}
+                    <Card className="bg-neutral-900/50 border-emerald-500/30 overflow-hidden max-w-4xl mx-auto w-full mt-4">
+                        <CardHeader className="bg-emerald-500/10 border-b border-emerald-500/20 pb-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-400">
+                                        <Bot className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <CardTitle className="text-emerald-400 flex items-center gap-2">
+                                            AI Assessment Builder <Sparkles className="w-4 h-4" />
+                                        </CardTitle>
+                                        <CardDescription className="text-emerald-400/70">
+                                            Describe your requirement and the AI will generate questions or coding tests.
+                                        </CardDescription>
+                                    </div>
+                                </div>
+                                <Button 
+                                    variant="outline" 
+                                    className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+                                    onClick={() => setShowAI(!showAI)}
+                                    type="button"
+                                >
+                                    {showAI ? "Hide Assistant" : "Open Assistant"}
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        
+                        {showAI && (
+                            <CardContent className="p-6 space-y-4 bg-neutral-950/30">
+                                <div className="flex gap-2">
+                                    <Input 
+                                        placeholder={`e.g., Generate 5 medium questions on Operating Systems...`}
+                                        className="bg-neutral-900 border-emerald-500/30 focus-visible:ring-emerald-500"
+                                        value={aiPrompt}
+                                        onChange={(e) => setAiPrompt(e.target.value)}
+                                    />
+                                    <Button 
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white min-w-[120px]"
+                                        onClick={handleAIGenerate}
+                                        disabled={aiGenerating || !aiPrompt.trim()}
+                                        type="button"
+                                    >
+                                        {aiGenerating ? "Thinking..." : "Generate AI"}
+                                    </Button>
+                                </div>
+                                
+                                {aiResponse && (
+                                    <div className="mt-4 p-4 bg-neutral-900 border border-neutral-800 rounded-xl space-y-4 animate-in fade-in">
+                                        {aiResponse.error ? (
+                                            <div className="text-red-400 flex items-start gap-2">
+                                                <Bot className="w-5 h-5 mt-0.5" />
+                                                <p>{aiResponse.error}</p>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div>
+                                                    {basicInfo.type === 'Coding' ? (
+                                                        <>
+                                                            <h4 className="text-lg font-bold text-white mb-2">{aiResponse.title}</h4>
+                                                            <div className="text-sm text-neutral-300 font-mono bg-neutral-950 p-2 rounded border border-neutral-800 mb-2 whitespace-pre-wrap">
+                                                                {aiResponse.description}
+                                                            </div>
+                                                            <div className="text-xs text-emerald-400">✅ Starter code & Test cases generated.</div>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <h4 className="text-lg font-bold text-white mb-2">Generated Questions ({aiResponse.questions?.length})</h4>
+                                                            <ul className="list-decimal pl-5 text-sm text-neutral-300 space-y-2 max-h-40 overflow-y-auto">
+                                                                {aiResponse.questions?.map((q: any, i: number) => (
+                                                                    <li key={i}>{q.question_text} <span className="text-emerald-500 ml-2">✓</span></li>
+                                                                ))}
+                                                            </ul>
+                                                        </>
+                                                    )}
+                                                </div>
+                                                <div className="flex justify-end pt-2">
+                                                    <Button type="button" onClick={applyAIAssessment} className="bg-emerald-500 hover:bg-emerald-600 text-white flex items-center gap-2">
+                                                        <Plus className="w-4 h-4" /> Use generated content
+                                                    </Button>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                            </CardContent>
+                        )}
+                    </Card>
+
+                    <div className="max-w-4xl mx-auto w-full">
                     {basicInfo.type === 'Coding' ? (
                         <div className="space-y-6">
                             <div className="grid grid-cols-2 gap-4">
@@ -369,9 +525,10 @@ export default function AssessmentBuilder({ onSuccess }: { onSuccess: () => void
                             </Button>
                         </div>
                     )}
+                    </div>
 
-                    <div className="pt-6 mt-auto flex justify-between border-t border-neutral-800">
-                        <Button variant="ghost" onClick={prevStep}>
+                    <div className="pt-6 mt-auto flex justify-between border-t border-neutral-800 max-w-4xl mx-auto w-full">
+                        <Button type="button" variant="ghost" onClick={prevStep}>
                             <ArrowLeft className="mr-2 h-4 w-4" /> Back
                         </Button>
                         <Button onClick={nextStep} className="bg-white text-black hover:bg-neutral-200">

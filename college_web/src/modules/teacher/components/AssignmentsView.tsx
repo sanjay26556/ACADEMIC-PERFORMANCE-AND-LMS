@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Code, BookOpen, BrainCircuit, Calendar, Video, FileText, Plus, Trash2 } from "lucide-react";
+import { Code, BookOpen, BrainCircuit, Calendar, Video, FileText, Plus, Trash2, Bot, Sparkles } from "lucide-react";
 
 export const fetchWithAuth = async (url: string, options: any = {}) => {
     const res = await fetch(url, options);
@@ -43,6 +43,12 @@ export default function AssignmentsView() {
         problem_statement: "", // For Coding description? Or separate field? Using description for now.
         input_method: "Code Editor" // Coding specific
     });
+
+    // AI Generation State
+    const [aiPrompt, setAiPrompt] = useState("");
+    const [aiGenerating, setAiGenerating] = useState(false);
+    const [aiResponse, setAiResponse] = useState<any>(null);
+    const [showAI, setShowAI] = useState(false);
 
     useEffect(() => {
         fetchAssignments();
@@ -107,6 +113,43 @@ export default function AssignmentsView() {
         }
     };
 
+    const handleAIGenerate = async () => {
+        if (!aiPrompt.trim()) return;
+        setAiGenerating(true);
+        setAiResponse(null);
+        try {
+            const res = await fetchWithAuth(`${API_URL}/assignments/generate-ai`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ prompt: aiPrompt, category: activeCategory })
+            });
+            const data = await res.json();
+            if (data.error) {
+                toast.error(data.error);
+                setAiResponse({ error: data.error });
+            } else {
+                setAiResponse(data);
+                toast.success("Assignment drafted!");
+            }
+        } catch (err: any) {
+            toast.error(err.message || "Failed to generate AI assignment");
+            setAiResponse({ error: "Failed to generate AI assignment" });
+        } finally {
+            setAiGenerating(false);
+        }
+    };
+
+    const applyAIAssignment = () => {
+        if (!aiResponse || aiResponse.error) return;
+        setFormData(prev => ({
+            ...prev,
+            title: aiResponse.title || prev.title,
+            description: aiResponse.description || prev.description
+        }));
+        setShowAI(false);
+        toast.success("Assignment content applied to form!");
+    };
+
     const handleDelete = async (id: number) => {
         if (!confirm("Are you sure?")) return;
         try {
@@ -155,10 +198,87 @@ export default function AssignmentsView() {
 
             {/* Creation Form */}
             {activeCategory && (
-                <Card className="bg-neutral-900/50 border-neutral-800 animate-in fade-in slide-in-from-top-4">
-                    <CardHeader>
-                        <CardTitle>Create {activeCategory} Assignment</CardTitle>
-                    </CardHeader>
+                <div className="space-y-6">
+                    {/* AI Generator Panel */}
+                    <Card className="bg-neutral-900/50 border-emerald-500/30 overflow-hidden">
+                        <CardHeader className="bg-emerald-500/10 border-b border-emerald-500/20 pb-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-emerald-500/20 rounded-lg text-emerald-400">
+                                        <Bot className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <CardTitle className="text-emerald-400 flex items-center gap-2">
+                                            AI Academic Assistant <Sparkles className="w-4 h-4" />
+                                        </CardTitle>
+                                        <CardDescription className="text-emerald-400/70">
+                                            Describe your academic requirement and I'll generate it instantly.
+                                        </CardDescription>
+                                    </div>
+                                </div>
+                                <Button 
+                                    variant="outline" 
+                                    className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
+                                    onClick={() => setShowAI(!showAI)}
+                                    type="button"
+                                >
+                                    {showAI ? "Hide Assistant" : "Open Assistant"}
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        
+                        {showAI && (
+                            <CardContent className="p-6 space-y-4 bg-neutral-950/30">
+                                <div className="flex gap-2">
+                                    <Input 
+                                        placeholder={`e.g., Generate a hard ${activeCategory} assignment about Data Structures...`}
+                                        className="bg-neutral-900 border-emerald-500/30 focus-visible:ring-emerald-500"
+                                        value={aiPrompt}
+                                        onChange={(e) => setAiPrompt(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleAIGenerate()}
+                                    />
+                                    <Button 
+                                        type="button"
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white min-w-[120px]"
+                                        onClick={handleAIGenerate}
+                                        disabled={aiGenerating || !aiPrompt.trim()}
+                                    >
+                                        {aiGenerating ? "Thinking..." : "Generate AI"}
+                                    </Button>
+                                </div>
+                                
+                                {aiResponse && (
+                                    <div className="mt-4 p-4 bg-neutral-900 border border-neutral-800 rounded-xl space-y-4 animate-in fade-in">
+                                        {aiResponse.error ? (
+                                            <div className="text-red-400 flex items-start gap-2">
+                                                <Bot className="w-5 h-5 mt-0.5" />
+                                                <p>{aiResponse.error}</p>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div>
+                                                    <h4 className="text-lg font-bold text-white mb-2">{aiResponse.title}</h4>
+                                                    <div className="text-sm text-neutral-300 whitespace-pre-wrap font-mono bg-neutral-950 p-4 rounded-lg border border-neutral-800 max-h-64 overflow-y-auto">
+                                                        {aiResponse.description}
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-end pt-2">
+                                                    <Button type="button" onClick={applyAIAssignment} className="bg-emerald-500 hover:bg-emerald-600 text-white flex items-center gap-2">
+                                                        <Plus className="w-4 h-4" /> Use this Assignment
+                                                    </Button>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                            </CardContent>
+                        )}
+                    </Card>
+
+                    <Card className="bg-neutral-900/50 border-neutral-800 animate-in fade-in slide-in-from-top-4">
+                        <CardHeader>
+                            <CardTitle>Create {activeCategory} Assignment</CardTitle>
+                        </CardHeader>
                     <CardContent>
                         <form onSubmit={handleCreate} className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
@@ -235,6 +355,7 @@ export default function AssignmentsView() {
                         </form>
                     </CardContent>
                 </Card>
+                </div>
             )}
 
             {/* Assignments List */}

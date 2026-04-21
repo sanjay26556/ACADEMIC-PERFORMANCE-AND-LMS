@@ -4,6 +4,8 @@ const pool = require('../db');
 const { authenticateToken, authorizeRole } = require('../middleware/auth');
 
 // Middleware to get Teacher ID
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+
 const getTeacherId = async (req, res, next) => {
     try {
         if (req.user.role !== 'teacher') return next();
@@ -18,6 +20,71 @@ const getTeacherId = async (req, res, next) => {
 };
 
 router.use(authenticateToken);
+
+// -------------------------------------------------------------------------
+// AI GENERATION FOR ASSESSMENTS
+// -------------------------------------------------------------------------
+router.post('/generate-ai', authorizeRole(['teacher']), async (req, res) => {
+    const { prompt, type } = req.body; 
+    
+    const NON_ACADEMIC_KEYWORDS = ['joke', 'movie', 'song', 'weather', 'sports', 'politics', 'entertainment', 'recipe', 'dance', 'casual', 'hello', 'hi'];
+    const hasNonAcademic = NON_ACADEMIC_KEYWORDS.some(word => prompt.toLowerCase().includes(word));
+    
+    if (hasNonAcademic) {
+        return res.json({ 
+            error: "This assistant is designed only for educational and assignment-related content. Please enter a valid academic query." 
+        });
+    }
+
+    try {
+        if (!process.env.GEMINI_API_KEY) {
+            return res.json({ error: "GEMINI_API_KEY is not set. Please add it to your .env file." });
+        }
+
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+
+        let formatInstructions = "";
+        if (type === 'Coding') {
+            formatInstructions = 'Generate a coding problem. Output must be strictly valid JSON matching this schema: { "title": "string", "description": "string", "starter_code": "string", "test_cases": [{"input": "string", "expected_output": "string", "is_hidden": boolean}] }';
+        } else {
+            // MCQ or Subject
+            formatInstructions = 'Generate exactly 3 to 5 questions. Output must be strictly valid JSON matching this schema: { "questions": [{"question_text": "string", "options": ["Option A", "Option B", "Option C", "Option D"], "correct_answer": "Option A"}] }. Ensure exactly 4 unique options for MCQ.';
+        }
+
+        const systemPrompt = `You are an academic assistant designed to generate assessment content only.
+If the user asks anything unrelated to education, respond ONLY with: "This assistant is designed only for educational and assignment-related content. Please enter a valid academic query."
+
+Generate structured, clean, and ready-to-use assessment content.
+Provide your response strictly as a JSON object, without any markdown formatting wrappers (no \`\`\`json).
+${formatInstructions}
+
+Type: ${type}
+User Prompt: ${prompt}`;
+
+        const result = await model.generateContent(systemPrompt);
+        const responseText = result.response.text();
+        
+        try {
+             let cleanStr = responseText.replace(/```json/gi, '').replace(/```/gi, '').trim();
+             const data = JSON.parse(cleanStr);
+             return res.json(data);
+        } catch(e) {
+            if(responseText.includes("This assistant is designed only")) {
+                return res.json({ error: "This assistant is designed only for educational and assignment-related content. Please enter a valid academic query." });
+            }
+            return res.json({ error: "Failed to parse AI response into correct JSON format." });
+        }
+        
+    } catch (error) {
+        console.error("AI Generation Error", error);
+        let errorMsg = "Failed to generate assessment content.";
+        if (error.message && error.message.includes("503")) {
+            errorMsg = "Google API is experiencing high demand. Please try again in a few seconds.";
+        }
+        res.json({ error: errorMsg });
+    }
+});
 
 // -------------------------------------------------------------------------
 // GET ASSESSMENTS (List with Filters)
